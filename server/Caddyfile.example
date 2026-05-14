@@ -1,0 +1,3 @@
+chat.yourdomain.com {
+    reverse_proxy localhost:7332
+}
