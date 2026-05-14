@@ -6,8 +6,10 @@ A minimal terminal P2P chat app for direct or relay-based messaging between peop
 - Connect directly peer-to-peer over LAN or Tailscale (host/client mode)
 - Connect through a self-hosted WebSocket relay server (relay mode)
 - Raw, minimal, futuristic terminal UI
+- Who's online sidebar with contacts list
 - Chat history saved locally per session
-- Slash commands: /name, /room, /quit
+- System notifications for new messages and @mentions
+- Slash commands: /room, /name, /add, /remove, /mute, /unmute, /quit
 
 ## Stack
 - **Textual** — terminal UI framework (asyncio-based)
@@ -20,15 +22,50 @@ A minimal terminal P2P chat app for direct or relay-based messaging between peop
 |---|---|
 | `main.py` | Entry point, CLI args (host / connect / relay), connection retry logic |
 | `network.py` | `BaseConnection`, `Connection` (TCP), `RelayConnection` (WebSocket), connect/host/relay_connect |
-| `ui.py` | Textual `ChatApp` — message display, input, slash commands, status bar |
+| `ui.py` | Textual `ChatApp` — message display, input, slash commands, status bar, sidebar |
 | `config.py` | Load/save username to `~/.rootchat/config.json` |
 | `history.py` | Per-session log files in `~/.rootchat/logs/` |
+| `contacts.py` | Load/save/add/remove contacts in `~/.rootchat/contacts.json` |
+| `notifications.py` | OS notifications — Windows (WinRT toast) and Linux (notify-send) |
 | `server/relay.py` | FastAPI WebSocket relay — rooms in memory, broadcasts to room members |
 | `server/requirements.txt` | Server deps: fastapi[standard] |
 | `server/setup.sh` | Ubuntu setup: venv, deps, systemd service install |
 | `server/start.bat` | Start relay server (Windows) |
 | `server/start.sh` | Start relay server (Linux) |
 | `server/Caddyfile.example` | Caddy reverse proxy snippet |
+
+## UI layout
+```
+┌─ status bar ──────────────────────────────── server url ─┐
+├─ messages ──────────────────────────┐ ┌─ sidebar ────────┤
+│                                     │ │  in room         │
+│                                     │ │  ● alice         │
+│                                     │ │  ● r3pc0n        │
+│                                     │ │                  │
+│                                     │ │  contacts        │
+│                                     │ │  ● alice         │
+│                                     │ │  ○ bob           │
+├─ hint bar (appears when typing /) ──┴─┴──────────────────┤
+├─ input ──────────────────────────────────────────────────┤
+```
+
+## Keyboard shortcuts
+| Key | Action |
+|---|---|
+| `ctrl+b` | Toggle sidebar |
+| `ctrl+n` | Toggle notifications (mute/unmute) |
+| `ctrl+c` / `escape` | Quit |
+
+## Slash commands
+| Command | Description |
+|---|---|
+| `/room <name>` | Switch relay room |
+| `/name <newname>` | Change username (saved to config) |
+| `/add <username>` | Add contact |
+| `/remove <username>` | Remove contact |
+| `/mute` | Mute notifications for this session |
+| `/unmute` | Re-enable notifications |
+| `/quit` | Exit |
 
 ## Architecture
 
@@ -50,14 +87,22 @@ Newline-delimited JSON over TCP, plain JSON strings over WebSocket:
 - `/health` endpoint returns active rooms and connected users
 - `/ws?username=alice&room=default` — WebSocket endpoint
 - Server broadcasts join/leave events as system messages (`"user": "·"`)
+- Sidebar polls `/health` every 5 seconds to update online users
+
+### Notifications
+- `notifications.py` dispatches to platform-appropriate backend
+- Windows: WinRT toast via PowerShell `-EncodedCommand` (no extra deps)
+- Linux: `notify-send` subprocess
+- Regular message: title `· username`; mention (username in text): title `@ username`
+- Mute state is session-only (not persisted)
 
 ### Network separation
 Network code (`network.py`) is intentionally kept separate from UI (`ui.py`) to make a future Go rewrite straightforward.
 
 ## Current state
 - **Repo**: https://github.com/r3pc0n/root_chat (private)
-- **Relay server**: running on homelab VM, accessible at `wss://rootchat-server.ddns.net`
-- **Relay server host**: Ubuntu 24.04, systemd service `rootchat-relay`, behind Caddy reverse proxy
+- **Relay server**: running on homelab VM at `wss://rootchat-server.ddns.net`
+- **Relay server host**: Ubuntu 24.04, systemd service `rootchat-relay`, behind Caddy reverse proxy (Caddy on separate machine at 192.168.2.12, relay VM at 192.168.2.4)
 - **Tested**: direct mode (same machine), relay mode (two machines on different networks)
 
 ## Development workflow
@@ -88,8 +133,8 @@ sudo systemctl restart rootchat-relay
 sudo journalctl -u rootchat-relay -f
 ```
 
-## Known issues / next steps
-1. ~~**Rooms** — /room command to switch rooms mid-session~~ done
-2. **Who's online** — sidebar or status showing connected users in the room
-3. **End-to-end encryption** — server currently sees plaintext messages (TLS in transit only)
-4. **Go rewrite** — potential future rewrite for single-binary distribution
+## Parked / future
+1. **End-to-end encryption** — server currently sees plaintext (TLS in transit only); E2E for direct mode is feasible, group E2E is complex
+2. **Go rewrite** — potential future rewrite for single-binary distribution
+3. **Relay server** — currently no authentication; anyone with the URL can connect
+4. **Notification mute persistence** — currently session-only
