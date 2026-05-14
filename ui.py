@@ -6,10 +6,11 @@ from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.widgets import Input, RichLog, Static
+from textual.worker import Worker
 
 from config import save_username
 from history import History
-from network import BaseConnection, ChatMessage
+from network import BaseConnection, ChatMessage, RelayConnection, relay_connect
 
 
 class ChatApp(App):
@@ -60,6 +61,8 @@ class ChatApp(App):
         self.conn = conn
         self.mode = mode
         self._history: History | None = None
+        self._recv_worker: Worker | None = None
+        self._switching_room = False
 
     def _status_text(self) -> str:
         return f"  ROOT CHAT  ·  [{self.mode}]  ·  you: {self.username}  ·  peer: {self.conn.peer_addr}"
@@ -73,14 +76,15 @@ class ChatApp(App):
         self._history = History(self.conn.peer_addr)
         self.query_one("#chat-input", Input).focus()
         self._system(f"connected to {self.conn.peer_addr}")
-        self.run_worker(self._receive_loop(), exclusive=False)
+        self._recv_worker = self.run_worker(self._receive_loop(), exclusive=False)
 
     async def _receive_loop(self) -> None:
         while True:
             msg = await self.conn.receive()
             if msg is None:
-                self._system("connection closed")
-                self.query_one("#chat-input", Input).disabled = True
+                if not self._switching_room:
+                    self._system("connection closed")
+                    self.query_one("#chat-input", Input).disabled = True
                 break
             self._append(msg.user, msg.text, msg.ts, own=False)
 
@@ -113,8 +117,45 @@ class ChatApp(App):
             save_username(self.username)
             self.query_one("#status", Static).update(self._status_text())
             self._system(f"you are now known as {self.username}")
+        elif cmd == "/room":
+            if not arg:
+                self._system("usage: /room <name>")
+                return
+            await self._switch_room(arg)
         else:
-            self._system(f"unknown command: {cmd}  (try /name or /quit)")
+            self._system(f"unknown command: {cmd}  (try /name, /room or /quit)")
+
+    async def _switch_room(self, new_room: str) -> None:
+        if not isinstance(self.conn, RelayConnection):
+            self._system("room switching only available in relay mode")
+            return
+
+        server_url = self.conn._server_url
+        old_room = self.conn._room
+
+        if new_room == old_room:
+            self._system(f"already in [{old_room}]")
+            return
+
+        self._system(f"switching to [{new_room}]...")
+        self._switching_room = True
+
+        if self._recv_worker:
+            self._recv_worker.cancel()
+        self.conn.close()
+
+        try:
+            self.conn = await relay_connect(server_url, self.username, new_room)
+        except Exception:
+            self._switching_room = False
+            self._system("failed to connect to new room")
+            return
+
+        self._switching_room = False
+        self.query_one("#chat-input", Input).disabled = False
+        self.query_one("#status", Static).update(self._status_text())
+        self._system(f"joined [{new_room}]")
+        self._recv_worker = self.run_worker(self._receive_loop(), exclusive=False)
 
     def _append(self, user: str, text: str, ts: str, own: bool) -> None:
         log = self.query_one("#messages", RichLog)
