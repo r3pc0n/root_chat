@@ -68,6 +68,14 @@ class ChatApp(App):
         padding: 0;
     }
 
+    #hint-bar {
+        height: 1;
+        background: #0d0d0d;
+        color: #2a2a2a;
+        padding: 0 2;
+        content-align: left middle;
+    }
+
     #chat-input {
         height: 3;
         background: #0d0d0d;
@@ -119,6 +127,7 @@ class ChatApp(App):
         with Horizontal(id="main"):
             yield RichLog(id="messages", highlight=False, markup=True, wrap=True)
             yield Static("", id="sidebar", markup=True)
+        yield Static("", id="hint-bar", markup=True)
         yield Input(placeholder="› message...", id="chat-input")
 
     def on_mount(self) -> None:
@@ -194,11 +203,35 @@ class ChatApp(App):
         self._sidebar_visible = not self._sidebar_visible
         self.query_one("#sidebar", Static).display = self._sidebar_visible
 
+    # add new commands here — hint bar picks them up automatically
+    _COMMANDS = [
+        "/room <name>",
+        "/name <newname>",
+        "/add <username>",
+        "/remove <username>",
+        "/quit",
+    ]
+
+    def on_input_changed(self, event: Input.Changed) -> None:
+        hint_bar = self.query_one("#hint-bar", Static)
+        value = event.value
+        if not value.startswith("/"):
+            hint_bar.display = False
+            return
+        matches = [c for c in self._COMMANDS if c.startswith(value)] if value != "/" else self._COMMANDS
+        if matches:
+            hint = "  [dim]·[/dim]  ".join(f"[dim]{m}[/dim]" for m in matches)
+        else:
+            hint = "[dim]  no matching command[/dim]"
+        hint_bar.update(f"  {hint}")
+        hint_bar.display = True
+
     async def on_input_submitted(self, event: Input.Submitted) -> None:
         text = event.value.strip()
         if not text:
             return
         event.input.value = ""
+        self.query_one("#hint-bar", Static).display = False
 
         if text.startswith("/"):
             await self._handle_command(text)
