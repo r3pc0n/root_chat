@@ -54,7 +54,6 @@ class ChatApp(App):
         width: 1fr;
         background: #0d0d0d;
         border: solid #1e1e1e;
-        border-right: none;
         padding: 0 1;
         scrollbar-color: #2a2a2a;
         scrollbar-background: #0d0d0d;
@@ -64,7 +63,8 @@ class ChatApp(App):
         width: 24;
         height: 100%;
         background: #0d0d0d;
-        border-left: solid #1e1e1e;
+        border: solid #1e1e1e;
+        margin-left: 1;
         padding: 0;
     }
 
@@ -192,11 +192,7 @@ class ChatApp(App):
 
     def action_toggle_sidebar(self) -> None:
         self._sidebar_visible = not self._sidebar_visible
-        sidebar = self.query_one("#sidebar", Static)
-        sidebar.display = self._sidebar_visible
-        # also restore right border on messages when sidebar hidden
-        messages = self.query_one("#messages", RichLog)
-        messages.styles.border_right = ("solid", "#1e1e1e") if not self._sidebar_visible else ("none", "#1e1e1e")
+        self.query_one("#sidebar", Static).display = self._sidebar_visible
 
     async def on_input_submitted(self, event: Input.Submitted) -> None:
         text = event.value.strip()
