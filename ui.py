@@ -62,9 +62,10 @@ class ChatApp(App):
 
     #sidebar {
         width: 24;
-        background: #0a0a0a;
+        height: 100%;
+        background: #0d0d0d;
         border-left: solid #1e1e1e;
-        padding: 1 1;
+        padding: 0;
     }
 
     #chat-input {
@@ -83,6 +84,7 @@ class ChatApp(App):
     BINDINGS = [
         Binding("ctrl+c", "quit", "Quit", show=False),
         Binding("escape", "quit", "Quit", show=False),
+        Binding("ctrl+b", "toggle_sidebar", "Toggle sidebar", show=False),
     ]
 
     def __init__(self, username: str, conn: BaseConnection, mode: str) -> None:
@@ -94,6 +96,7 @@ class ChatApp(App):
         self._recv_worker: Worker | None = None
         self._switching_room = False
         self._online_users: list[str] = []
+        self._sidebar_visible = True
 
     def _status_left(self) -> str:
         if isinstance(self.conn, RelayConnection):
@@ -159,33 +162,41 @@ class ChatApp(App):
 
     def _render_sidebar(self) -> None:
         contacts = load_contacts()
-        lines: list[str] = []
+        lines: list[str] = [""]  # top padding
 
         if isinstance(self.conn, RelayConnection):
-            lines.append("[dim] in room[/dim]")
-            lines.append("[dim] ───────[/dim]")
+            lines.append("  [dim]in room[/dim]")
+            lines.append("  [dim]───────[/dim]")
             if self._online_users:
                 for user in self._online_users:
-                    dot = "[#888888]●[/]" if user == self.username else "[#ffaa00]●[/]"
+                    dot = "[#555555]●[/]" if user == self.username else "[#ffaa00]●[/]"
                     label = f"[dim]{user}[/dim]"
-                    lines.append(f" {dot} {label}")
+                    lines.append(f"  {dot} {label}")
             else:
-                lines.append(" [dim]—[/dim]")
+                lines.append("  [dim]—[/dim]")
             lines.append("")
 
-        lines.append("[dim] contacts[/dim]")
-        lines.append("[dim] ────────[/dim]")
+        lines.append("  [dim]contacts[/dim]")
+        lines.append("  [dim]────────[/dim]")
         if contacts:
             for contact in contacts:
                 if contact in self._online_users:
-                    lines.append(f" [#ffaa00]●[/] [dim]{contact}[/dim]")
+                    lines.append(f"  [#ffaa00]●[/] [dim]{contact}[/dim]")
                 else:
-                    lines.append(f" [#333333]○[/] [#2a2a2a]{contact}[/]")
+                    lines.append(f"  [#333333]○[/] [#2a2a2a]{contact}[/]")
         else:
-            lines.append(" [dim]none[/dim]")
-            lines.append(" [dim]/add <name>[/dim]")
+            lines.append("  [dim]none[/dim]")
+            lines.append("  [dim]/add <name>[/dim]")
 
         self.query_one("#sidebar", Static).update("\n".join(lines))
+
+    def action_toggle_sidebar(self) -> None:
+        self._sidebar_visible = not self._sidebar_visible
+        sidebar = self.query_one("#sidebar", Static)
+        sidebar.display = self._sidebar_visible
+        # also restore right border on messages when sidebar hidden
+        messages = self.query_one("#messages", RichLog)
+        messages.styles.border_right = ("solid", "#1e1e1e") if not self._sidebar_visible else ("none", "#1e1e1e")
 
     async def on_input_submitted(self, event: Input.Submitted) -> None:
         text = event.value.strip()
