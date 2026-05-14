@@ -16,6 +16,7 @@ from config import save_username
 from contacts import add_contact, load_contacts, remove_contact
 from history import History
 from network import BaseConnection, ChatMessage, RelayConnection, relay_connect
+from notifications import notify
 
 
 class ChatApp(App):
@@ -327,6 +328,13 @@ class ChatApp(App):
         )
         if self._history:
             self._history.log(ts, user, text)
+        if not own:
+            self._notify(user, text)
+
+    def _notify(self, user: str, text: str) -> None:
+        mentioned = self.username.lower() in text.lower()
+        title = f"· {user}" if not mentioned else f"@ {user}"
+        notify(title, text)
 
     def _system(self, msg: str) -> None:
         log = self.query_one("#messages", RichLog)
