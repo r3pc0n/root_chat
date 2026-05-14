@@ -94,6 +94,7 @@ class ChatApp(App):
         Binding("ctrl+c", "quit", "Quit", show=False),
         Binding("escape", "quit", "Quit", show=False),
         Binding("ctrl+b", "toggle_sidebar", "Toggle sidebar", show=False),
+        Binding("ctrl+n", "toggle_notifications", "Toggle notifications", show=False),
     ]
 
     def __init__(self, username: str, conn: BaseConnection, mode: str) -> None:
@@ -106,6 +107,7 @@ class ChatApp(App):
         self._switching_room = False
         self._online_users: list[str] = []
         self._sidebar_visible = True
+        self._notifications_enabled = True
 
     def _status_left(self) -> str:
         if isinstance(self.conn, RelayConnection):
@@ -210,6 +212,8 @@ class ChatApp(App):
         "/name <newname>",
         "/add <username>",
         "/remove <username>",
+        "/mute",
+        "/unmute",
         "/quit",
     ]
 
@@ -271,6 +275,12 @@ class ChatApp(App):
                 self._render_sidebar()
             else:
                 self._system(f"{arg} is already in your contacts")
+        elif cmd == "/mute":
+            self._notifications_enabled = False
+            self._system("notifications muted  (ctrl+n or /unmute to re-enable)")
+        elif cmd == "/unmute":
+            self._notifications_enabled = True
+            self._system("notifications on")
         elif cmd == "/remove":
             if not arg:
                 self._system("usage: /remove <username>")
@@ -332,9 +342,16 @@ class ChatApp(App):
             self._notify(user, text)
 
     def _notify(self, user: str, text: str) -> None:
+        if not self._notifications_enabled:
+            return
         mentioned = self.username.lower() in text.lower()
         title = f"· {user}" if not mentioned else f"@ {user}"
         notify(title, text)
+
+    def action_toggle_notifications(self) -> None:
+        self._notifications_enabled = not self._notifications_enabled
+        state = "on" if self._notifications_enabled else "muted"
+        self._system(f"notifications {state}")
 
     def _system(self, msg: str) -> None:
         log = self.query_one("#messages", RichLog)
