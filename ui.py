@@ -220,6 +220,7 @@ class ChatApp(App):
         "/remove <username>",
         "/mute",
         "/unmute",
+        "/help",
         "/quit",
     ]
 
@@ -349,8 +350,21 @@ class ChatApp(App):
                 self._render_sidebar()
             else:
                 self._system(f"{arg} is not in your contacts")
+        elif cmd == "/help":
+            self._system("/room <name>          switch relay room")
+            self._system("/name <newname>        change your username")
+            self._system("/connect               list saved connections")
+            self._system("/connect <n>           switch to connection n")
+            self._system("/connect new           add a new connection")
+            self._system("/connect edit <n>      edit connection n")
+            self._system("/connect delete <n>    delete connection n")
+            self._system("/add <username>         add to contacts")
+            self._system("/remove <username>      remove from contacts")
+            self._system("/mute                  mute notifications")
+            self._system("/unmute                re-enable notifications")
+            self._system("/quit                  exit")
         else:
-            self._system(f"unknown command: {cmd}  (try /name, /room, /add, /remove, /quit)")
+            self._system(f"unknown command: {cmd}  (try /help)")
 
     async def _reconnect_relay(self, room: str, success_msg: str) -> None:
         server_url = self.conn._server_url
