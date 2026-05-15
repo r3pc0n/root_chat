@@ -112,8 +112,8 @@ class ChatApp(App):
     def _status_left(self) -> str:
         enc = "  ·  [#4a7c59][[e2e]][/]" if self.conn.encrypted else ""
         if isinstance(self.conn, RelayConnection):
-            return f"  ROOT CHAT  ·  [[{self.mode}]]  ·  you: {self.username}  ·  room: [[{self.conn._room}]]{enc}"
-        return f"  ROOT CHAT  ·  [[{self.mode}]]  ·  you: {self.username}  ·  peer: {self.conn.peer_addr}{enc}"
+            return f"  root_chat  ·  [[{self.mode}]]  ·  you: {self.username}  ·  room: [[{self.conn._room}]]{enc}"
+        return f"  root_chat  ·  [[{self.mode}]]  ·  you: {self.username}  ·  peer: {self.conn.peer_addr}{enc}"
 
     def _status_right(self) -> str:
         if isinstance(self.conn, RelayConnection):
