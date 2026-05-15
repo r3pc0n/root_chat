@@ -3,14 +3,21 @@ from __future__ import annotations
 import asyncio
 import sys
 
-from config import load_username, save_username
+from config import (
+    format_connection,
+    load_connections,
+    load_username,
+    save_connections,
+    save_last_connection,
+    save_username,
+)
 from crypto import fingerprint as key_fingerprint, get_or_create_keypair
-from network import DEFAULT_PORT, connect, host, relay_connect
+from network import DEFAULT_PORT, BaseConnection, connect, host, relay_connect
 from ui import ChatApp
 
 
 def _prompt_username() -> str:
-    print("\n  ROOT CHAT  —  first run\n")
+    print("\n  root_chat  —  first run\n")
     while True:
         name = input("  choose a username: ").strip()
         if name:
@@ -22,6 +29,16 @@ def _prompt_username() -> str:
 
 def _get_username() -> str:
     return load_username() or _prompt_username()
+
+
+def _normalize_url(url: str) -> str:
+    if url.startswith("http://"):
+        return url.replace("http://", "ws://", 1)
+    if url.startswith("https://"):
+        return url.replace("https://", "wss://", 1)
+    if not url.startswith(("ws://", "wss://")):
+        return f"ws://{url}"
+    return url
 
 
 def _parse_port(args: list[str]) -> int:
@@ -48,108 +65,237 @@ def _parse_relay_key(args: list[str]) -> str | None:
     return None
 
 
-def _normalize_url(url: str) -> str:
-    if url.startswith("http://"):
-        return url.replace("http://", "ws://", 1)
-    if url.startswith("https://"):
-        return url.replace("https://", "wss://", 1)
-    if not url.startswith(("ws://", "wss://")):
-        return f"ws://{url}"
-    return url
-
-
 def _usage() -> None:
     print("usage:")
-    print("  python main.py host [--port PORT]")
-    print("  python main.py connect <ip> [--port PORT]")
-    print("  python main.py relay <server-url> [--room ROOM]")
-    print()
-    print("examples:")
-    print("  python main.py relay ws://localhost:7332")
-    print("  python main.py relay wss://relay.example.com --room friends --relay-key serverpass --key msgpass")
+    print("  rootchat                         — interactive connection picker")
+    print("  rootchat host [--port PORT]")
+    print("  rootchat connect <ip> [--port PORT]")
+    print("  rootchat relay <url> [--room ROOM] [--relay-key KEY] [--key KEY]")
 
 
-async def _run_host(username: str, port: int) -> None:
-    keypair = get_or_create_keypair()
-    print(f"  your key:  {key_fingerprint(keypair.public_bytes)}")
-    print(f"  waiting for connection on port {port} ...")
-    conn = await host(port, keypair=keypair)
-    print(f"  peer key:  {conn.peer_fingerprint}  [verify with your peer]")
-    await ChatApp(username=username, conn=conn, mode="host").run_async()
-
-
-async def _run_connect(username: str, ip: str, port: int) -> None:
-    keypair = get_or_create_keypair()
-    print(f"  your key:  {key_fingerprint(keypair.public_bytes)}")
-    attempt = 0
+def _setup_connection() -> dict:
+    print("\n  root_chat  —  new connection\n")
+    name = input("  name: ").strip() or "my connection"
+    print("\n  mode:")
+    print("    [1] relay  (connect via a relay server)")
+    print("    [2] host   (wait for a peer to connect)")
+    print("    [3] connect (connect directly to a peer)")
     while True:
-        try:
-            suffix = f" (attempt {attempt + 1})" if attempt > 0 else ""
-            print(f"  connecting to {ip}:{port} ...{suffix}")
-            conn = await connect(ip, port, keypair=keypair)
+        choice = input("\n  > ").strip()
+        if choice in ("1", "2", "3"):
             break
-        except (ConnectionRefusedError, OSError):
-            attempt += 1
-            print(f"  host not available, retrying in 2s...")
-            await asyncio.sleep(2)
-    print(f"  peer key:  {conn.peer_fingerprint}  [verify with your peer]")
-    await ChatApp(username=username, conn=conn, mode="client").run_async()
+        print("  enter 1, 2 or 3")
+
+    if choice == "1":
+        server_url = _normalize_url(input("\n  server url: ").strip().rstrip("/"))
+        relay_key = input("  relay key       (blank = no auth): ").strip()
+        room = input("  room            [default]: ").strip() or "default"
+        message_key = input("  message enc key (blank = none):  ").strip()
+        return {
+            "name": name, "mode": "relay",
+            "server_url": server_url, "relay_key": relay_key,
+            "room": room, "message_key": message_key,
+        }
+    elif choice == "2":
+        port_str = input(f"\n  port [{DEFAULT_PORT}]: ").strip()
+        port = int(port_str) if port_str.isdigit() else DEFAULT_PORT
+        return {"name": name, "mode": "host", "port": port}
+    else:
+        ip = input("\n  peer ip: ").strip()
+        port_str = input(f"  port [{DEFAULT_PORT}]: ").strip()
+        port = int(port_str) if port_str.isdigit() else DEFAULT_PORT
+        return {"name": name, "mode": "connect", "ip": ip, "port": port}
 
 
-async def _run_relay(username: str, server_url: str, room: str, room_password: str | None, relay_key: str | None) -> None:
-    if room_password:
-        print(f"  deriving room key ...")
-    attempt = 0
+def _pick_connection(connections: list[dict]) -> int:
+    """Show numbered picker. Returns 0-based index or -1 for new connection."""
+    print("\n  root_chat\n")
+    for i, c in enumerate(connections):
+        print(f"  [{i + 1}] {format_connection(c)}")
+    print(f"  [n] + new connection\n")
     while True:
+        choice = input("  > ").strip().lower()
+        if choice == "n":
+            return -1
+        if choice.isdigit():
+            n = int(choice)
+            if 1 <= n <= len(connections):
+                return n - 1
+        print(f"  enter 1–{len(connections)} or n")
+
+
+async def _connect_to(username: str, c: dict) -> BaseConnection:
+    mode = c["mode"]
+
+    if mode == "relay":
+        server_url = c["server_url"]
+        room = c.get("room", "default")
+        relay_key = c.get("relay_key") or None
+        message_key = c.get("message_key") or None
+        attempt = 0
+        while True:
+            try:
+                suffix = f" (attempt {attempt + 1})" if attempt > 0 else ""
+                print(f"  connecting to {server_url} [{room}] ...{suffix}")
+                return await relay_connect(server_url, username, room, room_password=message_key, relay_key=relay_key)
+            except Exception:
+                attempt += 1
+                print("  relay not available, retrying in 2s...")
+                await asyncio.sleep(2)
+
+    elif mode == "host":
+        keypair = get_or_create_keypair()
+        port = c.get("port", DEFAULT_PORT)
+        print(f"  your key:  {key_fingerprint(keypair.public_bytes)}")
+        print(f"  waiting for connection on port {port} ...")
+        conn = await host(port, keypair=keypair)
+        print(f"  peer key:  {conn.peer_fingerprint}  [verify with your peer]")
+        return conn
+
+    elif mode == "connect":
+        keypair = get_or_create_keypair()
+        ip = c["ip"]
+        port = c.get("port", DEFAULT_PORT)
+        print(f"  your key:  {key_fingerprint(keypair.public_bytes)}")
+        conn = None
+        attempt = 0
+        while conn is None:
+            try:
+                suffix = f" (attempt {attempt + 1})" if attempt > 0 else ""
+                print(f"  connecting to {ip}:{port} ...{suffix}")
+                conn = await connect(ip, port, keypair=keypair)
+            except (ConnectionRefusedError, OSError):
+                attempt += 1
+                print("  host not available, retrying in 2s...")
+                await asyncio.sleep(2)
+        print(f"  peer key:  {conn.peer_fingerprint}  [verify with your peer]")
+        return conn
+
+    raise ValueError(f"unknown mode: {mode}")
+
+
+async def _run_interactive(username: str) -> None:
+    connections = load_connections()
+
+    if not connections:
+        conn_dict = _setup_connection()
+        connections = [conn_dict]
+        save_connections(connections)
+        print("\n  saved. connecting...\n")
+        idx = 0
+    elif len(connections) == 1:
+        print(f"\n  connecting to {connections[0]['name']}...\n")
+        idx = 0
+    else:
+        idx = _pick_connection(connections)
+        if idx == -1:
+            conn_dict = _setup_connection()
+            connections.append(conn_dict)
+            save_connections(connections)
+            idx = len(connections) - 1
+            print("\n  saved. connecting...\n")
+
+    while True:
+        save_last_connection(idx)
         try:
-            suffix = f" (attempt {attempt + 1})" if attempt > 0 else ""
-            print(f"  connecting to relay {server_url} [{room}] ...{suffix}")
-            conn = await relay_connect(server_url, username, room, room_password=room_password, relay_key=relay_key)
+            network_conn = await _connect_to(username, connections[idx])
+        except (KeyboardInterrupt, EOFError):
             break
-        except Exception:
-            attempt += 1
-            print(f"  relay not available, retrying in 2s...")
-            await asyncio.sleep(2)
-    await ChatApp(username=username, conn=conn, mode="relay").run_async()
+
+        result = await ChatApp(
+            username=username,
+            conn=network_conn,
+            mode=connections[idx]["mode"],
+            connections=connections,
+        ).run_async()
+
+        if result == -1:
+            # user wants to add a new connection
+            conn_dict = _setup_connection()
+            connections.append(conn_dict)
+            save_connections(connections)
+            idx = len(connections) - 1
+            print("\n  saved. connecting...\n")
+        elif isinstance(result, int) and 0 <= result < len(connections):
+            connections = load_connections()
+            idx = result
+        else:
+            break
 
 
-def main() -> None:
-    args = sys.argv[1:]
-    if not args:
-        _usage()
-        sys.exit(1)
-
-    username = _get_username()
+async def _run_cli(username: str, args: list[str]) -> None:
+    """Original CLI mode — bypasses picker for scripts / power users."""
     mode = args[0]
 
     if mode == "host":
+        keypair = get_or_create_keypair()
         port = _parse_port(args)
-        asyncio.run(_run_host(username, port))
+        print(f"  your key:  {key_fingerprint(keypair.public_bytes)}")
+        print(f"  waiting for connection on port {port} ...")
+        conn = await host(port, keypair=keypair)
+        print(f"  peer key:  {conn.peer_fingerprint}  [verify with your peer]")
+        await ChatApp(username=username, conn=conn, mode="host").run_async()
 
     elif mode == "connect":
         if len(args) < 2 or args[1].startswith("--"):
             print("  error: connect requires an IP address")
             _usage()
-            sys.exit(1)
+            return
+        keypair = get_or_create_keypair()
         ip = args[1]
         port = _parse_port(args)
-        asyncio.run(_run_connect(username, ip, port))
+        print(f"  your key:  {key_fingerprint(keypair.public_bytes)}")
+        conn = None
+        attempt = 0
+        while conn is None:
+            try:
+                suffix = f" (attempt {attempt + 1})" if attempt > 0 else ""
+                print(f"  connecting to {ip}:{port} ...{suffix}")
+                conn = await connect(ip, port, keypair=keypair)
+            except (ConnectionRefusedError, OSError):
+                attempt += 1
+                print("  host not available, retrying in 2s...")
+                await asyncio.sleep(2)
+        print(f"  peer key:  {conn.peer_fingerprint}  [verify with your peer]")
+        await ChatApp(username=username, conn=conn, mode="client").run_async()
 
     elif mode == "relay":
         if len(args) < 2 or args[1].startswith("--"):
             print("  error: relay requires a server URL")
             _usage()
-            sys.exit(1)
+            return
         server_url = _normalize_url(args[1].rstrip("/"))
         room = _parse_room(args)
         room_password = _parse_key(args)
         relay_key = _parse_relay_key(args)
-        asyncio.run(_run_relay(username, server_url, room, room_password, relay_key))
+        attempt = 0
+        conn = None
+        while conn is None:
+            try:
+                suffix = f" (attempt {attempt + 1})" if attempt > 0 else ""
+                print(f"  connecting to relay {server_url} [{room}] ...{suffix}")
+                conn = await relay_connect(server_url, username, room, room_password=room_password, relay_key=relay_key)
+            except Exception:
+                attempt += 1
+                print("  relay not available, retrying in 2s...")
+                await asyncio.sleep(2)
+        await ChatApp(username=username, conn=conn, mode="relay").run_async()
 
     else:
         print(f"  unknown mode: {mode}")
         _usage()
-        sys.exit(1)
+
+
+def main() -> None:
+    args = sys.argv[1:]
+    username = _get_username()
+
+    if args and args[0] in ("host", "connect", "relay"):
+        asyncio.run(_run_cli(username, args))
+    elif args:
+        _usage()
+    else:
+        asyncio.run(_run_interactive(username))
 
 
 if __name__ == "__main__":

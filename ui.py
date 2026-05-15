@@ -12,7 +12,7 @@ from textual.containers import Horizontal
 from textual.widgets import Input, RichLog, Static
 from textual.worker import Worker
 
-from config import load_notifications_enabled, save_notifications_enabled, save_username
+from config import format_connection, load_notifications_enabled, save_notifications_enabled, save_username
 from contacts import add_contact, load_contacts, remove_contact
 from history import History
 from network import BaseConnection, ChatMessage, RelayConnection, relay_connect
@@ -97,11 +97,12 @@ class ChatApp(App):
         Binding("ctrl+n", "toggle_notifications", "Toggle notifications", show=False),
     ]
 
-    def __init__(self, username: str, conn: BaseConnection, mode: str) -> None:
+    def __init__(self, username: str, conn: BaseConnection, mode: str, connections: list[dict] | None = None) -> None:
         super().__init__()
         self.username = username
         self.conn = conn
         self.mode = mode
+        self._connections = connections or []
         self._history: History | None = None
         self._recv_worker: Worker | None = None
         self._switching_room = False
@@ -214,6 +215,7 @@ class ChatApp(App):
     _COMMANDS = [
         "/room <name>",
         "/name <newname>",
+        "/connect [n]",
         "/add <username>",
         "/remove <username>",
         "/mute",
@@ -256,7 +258,27 @@ class ChatApp(App):
         arg = parts[1].strip() if len(parts) > 1 else ""
 
         if cmd == "/quit":
-            self.action_quit()
+            self._exit_with(None)
+        elif cmd == "/connect":
+            if not self._connections:
+                self._system("no saved connections  (use CLI args to connect)")
+                return
+            if not arg:
+                for i, c in enumerate(self._connections):
+                    self._system(f"  [{i + 1}] {format_connection(c)}")
+                self._system("  [n] + new connection")
+                self._system("  /connect <number>  or  /connect new")
+            elif arg == "new":
+                self._exit_with(-1)
+            else:
+                try:
+                    n = int(arg) - 1
+                    if n < 0 or n >= len(self._connections):
+                        self._system(f"  enter 1–{len(self._connections)}")
+                        return
+                    self._exit_with(n)
+                except ValueError:
+                    self._system("usage: /connect <number>  or  /connect new")
         elif cmd == "/name":
             if not arg:
                 self._system("usage: /name <newname>")
@@ -366,8 +388,11 @@ class ChatApp(App):
         if self._history:
             self._history.log_system(msg)
 
-    def action_quit(self) -> None:
+    def _exit_with(self, result) -> None:
         self.conn.close()
         if self._history:
             self._history.close()
-        self.exit()
+        self.exit(result=result)
+
+    def action_quit(self) -> None:
+        self._exit_with(None)
