@@ -153,7 +153,6 @@ sudo journalctl -u rootchat-relay -f
 
 ## Parked / future
 1. **Go rewrite** — potential future rewrite for single-binary distribution
-2. **Notification mute persistence** — currently session-only
 4. **Relay-inside-website** — relay can be hosted on an existing domain alongside a website using Caddy path routing; no code changes needed. Example for `newedennetwork.space`:
    ```
    newedennetwork.space {

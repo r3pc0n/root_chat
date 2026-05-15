@@ -12,7 +12,7 @@ from textual.containers import Horizontal
 from textual.widgets import Input, RichLog, Static
 from textual.worker import Worker
 
-from config import save_username
+from config import load_notifications_enabled, save_notifications_enabled, save_username
 from contacts import add_contact, load_contacts, remove_contact
 from history import History
 from network import BaseConnection, ChatMessage, RelayConnection, relay_connect
@@ -107,7 +107,7 @@ class ChatApp(App):
         self._switching_room = False
         self._online_users: list[str] = []
         self._sidebar_visible = True
-        self._notifications_enabled = True
+        self._notifications_enabled = load_notifications_enabled()
 
     def _status_left(self) -> str:
         enc = "  ·  [#4a7c59][[e2e]][/]" if self.conn.encrypted else ""
@@ -290,9 +290,11 @@ class ChatApp(App):
                 self._system(f"{arg} is already in your contacts")
         elif cmd == "/mute":
             self._notifications_enabled = False
+            save_notifications_enabled(False)
             self._system("notifications muted  (ctrl+n or /unmute to re-enable)")
         elif cmd == "/unmute":
             self._notifications_enabled = True
+            save_notifications_enabled(True)
             self._system("notifications on")
         elif cmd == "/remove":
             if not arg:
@@ -354,6 +356,7 @@ class ChatApp(App):
 
     def action_toggle_notifications(self) -> None:
         self._notifications_enabled = not self._notifications_enabled
+        save_notifications_enabled(self._notifications_enabled)
         state = "on" if self._notifications_enabled else "muted"
         self._system(f"notifications {state}")
 
