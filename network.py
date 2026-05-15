@@ -185,6 +185,6 @@ async def relay_connect(
     import websockets
     url = f"{server_url}/ws?username={username}&room={room}"
     headers = {"Authorization": f"Bearer {relay_key}"} if relay_key else {}
-    ws = await websockets.connect(url, extra_headers=headers)
+    ws = await websockets.connect(url, additional_headers=headers)
     key = derive_room_key(room_password, room) if room_password else None
     return RelayConnection(ws, server_url, room, encryption_key=key, room_password=room_password, relay_key=relay_key)
