@@ -151,10 +151,39 @@ class ChatApp(App):
             msg = await self.conn.receive()
             if msg is None:
                 if not self._switching_room:
-                    self._system("connection closed")
-                    self.query_one("#chat-input", Input).disabled = True
+                    if isinstance(self.conn, RelayConnection):
+                        self.run_worker(self._auto_reconnect(), exclusive=False)
+                    else:
+                        self._system("connection closed")
+                        self.query_one("#chat-input", Input).disabled = True
                 break
             self._append(msg.user, msg.text, msg.ts, own=False)
+
+    async def _auto_reconnect(self) -> None:
+        self.query_one("#chat-input", Input).disabled = True
+        server_url = self.conn._server_url
+        room = self.conn._room
+        room_password = getattr(self.conn, "_room_password", None)
+        relay_key = getattr(self.conn, "_relay_key", None)
+
+        self._system("connection lost")
+        attempt = 0
+        while True:
+            attempt += 1
+            suffix = f"  (attempt {attempt})" if attempt > 1 else ""
+            self._system(f"reconnecting...{suffix}")
+            try:
+                self.conn = await relay_connect(server_url, self.username, room, room_password=room_password, relay_key=relay_key)
+                self._online_users = []
+                self.query_one("#chat-input", Input).disabled = False
+                self._update_status()
+                self._render_sidebar()
+                self._system("reconnected")
+                self._recv_worker = self.run_worker(self._receive_loop(), exclusive=False)
+                await self._refresh_online()
+                return
+            except Exception:
+                await asyncio.sleep(3)
 
     async def _refresh_online(self) -> None:
         if not isinstance(self.conn, RelayConnection):
@@ -220,6 +249,7 @@ class ChatApp(App):
         "/remove <username>",
         "/mute",
         "/unmute",
+        "/clear",
         "/help",
         "/quit",
     ]
@@ -350,6 +380,8 @@ class ChatApp(App):
                 self._render_sidebar()
             else:
                 self._system(f"{arg} is not in your contacts")
+        elif cmd == "/clear":
+            self.query_one("#messages", RichLog).clear()
         elif cmd == "/help":
             self._system("/room <name>          switch relay room")
             self._system("/name <newname>        change your username")

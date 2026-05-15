@@ -1,7 +1,12 @@
 __pycache__/
 *.pyc
 *.pyo
+*.spec
+build/
+dist/
 venv/
 .env
 *.log
 .DS_Store
+.claude/
+resume-claude-project.txt
