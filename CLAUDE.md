@@ -120,7 +120,7 @@ Network code (`network.py`) is intentionally kept separate from UI (`ui.py`) to 
 - **Repo**: https://github.com/r3pc0n/root_chat (private)
 - **Relay server**: running on homelab VM at `wss://rootchat-server.ddns.net`
 - **Relay server host**: Ubuntu 24.04, systemd service `rootchat-relay`, behind Caddy reverse proxy (Caddy on separate machine at 192.168.2.12, relay VM at 192.168.2.4)
-- **Tested**: direct mode (same machine), relay mode (two machines on different networks)
+- **Tested**: direct mode (same machine), relay mode (two machines on different networks), E2E encryption both modes
 
 ## Development workflow
 ```powershell
@@ -153,5 +153,19 @@ sudo journalctl -u rootchat-relay -f
 
 ## Parked / future
 1. **Go rewrite** — potential future rewrite for single-binary distribution
-2. **Relay server** — currently no authentication; anyone with the URL can connect
+2. **Relay server auth** — currently no authentication; anyone with the URL can connect
 3. **Notification mute persistence** — currently session-only
+4. **Relay-inside-website** — relay can be hosted on an existing domain alongside a website using Caddy path routing; no code changes needed. Example for `newedennetwork.space`:
+   ```
+   newedennetwork.space {
+       handle /relay* {
+           reverse_proxy localhost:7332
+       }
+       handle {
+           root * /var/www/newedennetwork.space
+           file_server
+       }
+   }
+   ```
+   Connect with: `python main.py relay wss://newedennetwork.space/relay --room friends --key yourpassword`
+   WebSocket traffic is indistinguishable from normal web app traffic; combined with `--key` the relay operator can't read messages either.
