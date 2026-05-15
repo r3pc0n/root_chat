@@ -215,7 +215,7 @@ class ChatApp(App):
     _COMMANDS = [
         "/room <name>",
         "/name <newname>",
-        "/connect [n]",
+        "/connect [n|new|edit n|delete n]",
         "/add <username>",
         "/remove <username>",
         "/mute",
@@ -267,9 +267,31 @@ class ChatApp(App):
                 for i, c in enumerate(self._connections):
                     self._system(f"  [{i + 1}] {format_connection(c)}")
                 self._system("  [n] + new connection")
-                self._system("  /connect <number>  or  /connect new")
+                self._system("  /connect <n>  ·  /connect new  ·  /connect edit <n>  ·  /connect delete <n>")
             elif arg == "new":
                 self._exit_with(-1)
+            elif arg.startswith("edit "):
+                try:
+                    n = int(arg.split()[1]) - 1
+                    if n < 0 or n >= len(self._connections):
+                        self._system(f"  enter 1–{len(self._connections)}")
+                        return
+                    self._exit_with(("edit", n))
+                except (ValueError, IndexError):
+                    self._system("usage: /connect edit <number>")
+            elif arg.startswith("delete "):
+                try:
+                    n = int(arg.split()[1]) - 1
+                    if n < 0 or n >= len(self._connections):
+                        self._system(f"  enter 1–{len(self._connections)}")
+                        return
+                    from config import save_connections
+                    name = self._connections[n]["name"]
+                    self._connections.pop(n)
+                    save_connections(self._connections)
+                    self._system(f"  deleted [{name}]")
+                except (ValueError, IndexError):
+                    self._system("usage: /connect delete <number>")
             else:
                 try:
                     n = int(arg) - 1
@@ -278,7 +300,7 @@ class ChatApp(App):
                         return
                     self._exit_with(n)
                 except ValueError:
-                    self._system("usage: /connect <number>  or  /connect new")
+                    self._system("usage: /connect <number>  ·  /connect new  ·  /connect edit <n>  ·  /connect delete <n>")
         elif cmd == "/name":
             if not arg:
                 self._system("usage: /name <newname>")

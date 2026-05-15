@@ -37,7 +37,7 @@ def _normalize_url(url: str) -> str:
     if url.startswith("https://"):
         return url.replace("https://", "wss://", 1)
     if not url.startswith(("ws://", "wss://")):
-        return f"ws://{url}"
+        return f"wss://{url}"
     return url
 
 
@@ -73,36 +73,53 @@ def _usage() -> None:
     print("  rootchat relay <url> [--room ROOM] [--relay-key KEY] [--key KEY]")
 
 
-def _setup_connection() -> dict:
-    print("\n  root_chat  —  new connection\n")
-    name = input("  name: ").strip() or "my connection"
+def _prompt(label: str, default: str = "") -> str:
+    suffix = f" [{default}]" if default else ""
+    value = input(f"  {label}{suffix}: ").strip()
+    return value or default
+
+
+def _setup_connection(existing: dict | None = None) -> dict:
+    is_edit = existing is not None
+    title = "edit connection" if is_edit else "new connection"
+    print(f"\n  root_chat  —  {title}\n")
+
+    name = _prompt("name", existing.get("name", "") if existing else "") or "my connection"
+
+    mode_map = {"relay": "1", "host": "2", "connect": "3"}
+    current_mode = mode_map.get(existing.get("mode", ""), "") if existing else ""
     print("\n  mode:")
     print("    [1] relay  (connect via a relay server)")
     print("    [2] host   (wait for a peer to connect)")
     print("    [3] connect (connect directly to a peer)")
     while True:
-        choice = input("\n  > ").strip()
+        suffix = f" [{current_mode}]" if current_mode else ""
+        choice = input(f"\n  >{suffix} ").strip() or current_mode
         if choice in ("1", "2", "3"):
             break
         print("  enter 1, 2 or 3")
 
     if choice == "1":
-        server_url = _normalize_url(input("\n  server url: ").strip().rstrip("/"))
-        relay_key = input("  relay key       (blank = no auth): ").strip()
-        room = input("  room            [default]: ").strip() or "default"
-        message_key = input("  message enc key (blank = none):  ").strip()
+        default_url = existing.get("server_url", "") if existing else ""
+        server_url = _normalize_url(_prompt("server url", default_url).rstrip("/"))
+        relay_key = _prompt("relay key       (blank = no auth)", existing.get("relay_key", "") if existing else "")
+        room = _prompt("room           ", existing.get("room", "default") if existing else "default") or "default"
+        message_key = _prompt("message enc key (blank = none) ", existing.get("message_key", "") if existing else "")
         return {
             "name": name, "mode": "relay",
             "server_url": server_url, "relay_key": relay_key,
             "room": room, "message_key": message_key,
         }
     elif choice == "2":
-        port_str = input(f"\n  port [{DEFAULT_PORT}]: ").strip()
+        default_port = str(existing.get("port", DEFAULT_PORT)) if existing else str(DEFAULT_PORT)
+        port_str = _prompt(f"port", default_port)
         port = int(port_str) if port_str.isdigit() else DEFAULT_PORT
         return {"name": name, "mode": "host", "port": port}
     else:
-        ip = input("\n  peer ip: ").strip()
-        port_str = input(f"  port [{DEFAULT_PORT}]: ").strip()
+        default_ip = existing.get("ip", "") if existing else ""
+        default_port = str(existing.get("port", DEFAULT_PORT)) if existing else str(DEFAULT_PORT)
+        ip = _prompt("peer ip", default_ip)
+        port_str = _prompt("port", default_port)
         port = int(port_str) if port_str.isdigit() else DEFAULT_PORT
         return {"name": name, "mode": "connect", "ip": ip, "port": port}
 
@@ -210,11 +227,16 @@ async def _run_interactive(username: str) -> None:
         ).run_async()
 
         if result == -1:
-            # user wants to add a new connection
             conn_dict = _setup_connection()
             connections.append(conn_dict)
             save_connections(connections)
             idx = len(connections) - 1
+            print("\n  saved. connecting...\n")
+        elif isinstance(result, tuple) and result[0] == "edit":
+            n = result[1]
+            connections[n] = _setup_connection(existing=connections[n])
+            save_connections(connections)
+            idx = n
             print("\n  saved. connecting...\n")
         elif isinstance(result, int) and 0 <= result < len(connections):
             connections = load_connections()
