@@ -96,6 +96,7 @@ class ChatApp(App):
         Binding("escape", "quit", "Quit", show=False),
         Binding("ctrl+b", "toggle_sidebar", "Toggle sidebar", show=False),
         Binding("ctrl+n", "toggle_notifications", "Toggle notifications", show=False),
+        Binding("tab", "complete_mention", "Complete mention", show=False, priority=True),
     ]
 
     def __init__(self, username: str, conn: BaseConnection, mode: str, connections: list[dict] | None = None) -> None:
@@ -255,19 +256,60 @@ class ChatApp(App):
         "/quit",
     ]
 
+    def _mention_candidates(self) -> list[str]:
+        seen = set()
+        result = []
+        for u in self._online_users + load_contacts():
+            if u != self.username and u not in seen:
+                seen.add(u)
+                result.append(u)
+        return result
+
     def on_input_changed(self, event: Input.Changed) -> None:
         hint_bar = self.query_one("#hint-bar", Static)
         value = event.value
-        if not value.startswith("/"):
-            hint_bar.display = False
+
+        if value.startswith("/"):
+            matches = [c for c in self._COMMANDS if c.startswith(value)] if value != "/" else self._COMMANDS
+            hint = "  [dim]·[/dim]  ".join(f"[dim]{m}[/dim]" for m in matches) if matches else "[dim]  no matching command[/dim]"
+            hint_bar.update(f"  {hint}")
+            hint_bar.display = True
             return
-        matches = [c for c in self._COMMANDS if c.startswith(value)] if value != "/" else self._COMMANDS
-        if matches:
-            hint = "  [dim]·[/dim]  ".join(f"[dim]{m}[/dim]" for m in matches)
-        else:
-            hint = "[dim]  no matching command[/dim]"
-        hint_bar.update(f"  {hint}")
-        hint_bar.display = True
+
+        at_pos = value.rfind("@")
+        if at_pos != -1:
+            partial = value[at_pos + 1:]
+            if " " not in partial:
+                candidates = self._mention_candidates()
+                matches = [u for u in candidates if u.lower().startswith(partial.lower())] if partial else candidates
+                if matches:
+                    hint = "  [dim]·[/dim]  ".join(f"[dim]@{m}[/dim]" for m in matches)
+                    hint_bar.update(f"  {hint}  [dim](tab)[/dim]")
+                    hint_bar.display = True
+                    return
+
+        hint_bar.display = False
+
+    def action_complete_mention(self) -> None:
+        input_widget = self.query_one("#chat-input", Input)
+        if not input_widget.has_focus:
+            self.action_focus_next()
+            return
+        value = input_widget.value
+        at_pos = value.rfind("@")
+        if at_pos == -1:
+            self.action_focus_next()
+            return
+        partial = value[at_pos + 1:]
+        if " " in partial:
+            self.action_focus_next()
+            return
+        candidates = self._mention_candidates()
+        matches = [u for u in candidates if u.lower().startswith(partial.lower())] if partial else candidates
+        if not matches:
+            self.action_focus_next()
+            return
+        input_widget.value = value[:at_pos + 1] + matches[0] + " "
 
     async def on_input_submitted(self, event: Input.Submitted) -> None:
         text = event.value.strip()
