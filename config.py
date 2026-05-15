@@ -55,6 +55,16 @@ def save_last_connection(index: int) -> None:
     _save(data)
 
 
+def load_autostart_initialized() -> bool:
+    return _load().get("autostart_initialized", False)
+
+
+def save_autostart_initialized() -> None:
+    data = _load()
+    data["autostart_initialized"] = True
+    _save(data)
+
+
 def format_connection(c: dict) -> str:
     name = c.get("name", "unnamed")
     mode = c.get("mode", "?")

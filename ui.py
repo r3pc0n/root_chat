@@ -251,6 +251,7 @@ class ChatApp(App):
         "/connect [n|new|edit n|delete n]",
         "/add <username>",
         "/remove <username>",
+        "/autostart",
         "/mute",
         "/unmute",
         "/clear",
@@ -447,6 +448,17 @@ class ChatApp(App):
                 self._render_sidebar()
             else:
                 self._system(f"{arg} is already in your contacts")
+        elif cmd == "/autostart":
+            try:
+                from autostart import disable, enable, is_enabled
+                if is_enabled():
+                    disable()
+                    self._system("autostart disabled")
+                else:
+                    enable()
+                    self._system("autostart enabled  —  rootchat will launch on login")
+            except Exception as e:
+                self._system(f"autostart not available: {e}")
         elif cmd == "/mute":
             self._notifications_enabled = False
             save_notifications_enabled(False)
@@ -470,6 +482,7 @@ class ChatApp(App):
             self._system("/room <name>          switch relay room")
             self._system("/name <newname>        change your username")
             self._system("/dm <user>             open a private chat")
+            self._system("/autostart             toggle launch on system login")
             self._system("/msg <user> <text>     send a one-off private message")
             self._system("/connect               list saved connections")
             self._system("/connect <n>           switch to connection n")

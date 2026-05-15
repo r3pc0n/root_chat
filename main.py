@@ -5,8 +5,10 @@ import sys
 
 from config import (
     format_connection,
+    load_autostart_initialized,
     load_connections,
     load_username,
+    save_autostart_initialized,
     save_connections,
     save_last_connection,
     save_username,
@@ -191,27 +193,7 @@ async def _connect_to(username: str, c: dict) -> BaseConnection:
     raise ValueError(f"unknown mode: {mode}")
 
 
-async def _run_interactive(username: str) -> None:
-    connections = load_connections()
-
-    if not connections:
-        conn_dict = _setup_connection()
-        connections = [conn_dict]
-        save_connections(connections)
-        print("\n  saved. connecting...\n")
-        idx = 0
-    elif len(connections) == 1:
-        print(f"\n  connecting to {connections[0]['name']}...\n")
-        idx = 0
-    else:
-        idx = _pick_connection(connections)
-        if idx == -1:
-            conn_dict = _setup_connection()
-            connections.append(conn_dict)
-            save_connections(connections)
-            idx = len(connections) - 1
-            print("\n  saved. connecting...\n")
-
+async def _run_from(username: str, connections: list[dict], idx: int) -> None:
     while True:
         save_last_connection(idx)
         try:
@@ -243,6 +225,42 @@ async def _run_interactive(username: str) -> None:
             idx = result
         else:
             break
+
+
+async def _run_interactive(username: str) -> None:
+    connections = load_connections()
+
+    if not connections:
+        conn_dict = _setup_connection()
+        connections = [conn_dict]
+        save_connections(connections)
+        print("\n  saved. connecting...\n")
+        idx = 0
+    elif len(connections) == 1:
+        print(f"\n  connecting to {connections[0]['name']}...\n")
+        idx = 0
+    else:
+        idx = _pick_connection(connections)
+        if idx == -1:
+            conn_dict = _setup_connection()
+            connections.append(conn_dict)
+            save_connections(connections)
+            idx = len(connections) - 1
+            print("\n  saved. connecting...\n")
+
+    await _run_from(username, connections, idx)
+
+
+async def _run_autoconnect(username: str) -> None:
+    connections = load_connections()
+    if not connections:
+        await _run_interactive(username)
+        return
+    idx = load_last_connection()
+    if idx < 0 or idx >= len(connections):
+        idx = 0
+    print(f"\n  auto-connecting to {connections[idx]['name']}...\n")
+    await _run_from(username, connections, idx)
 
 
 async def _run_cli(username: str, args: list[str]) -> None:
@@ -308,11 +326,25 @@ async def _run_cli(username: str, args: list[str]) -> None:
         _usage()
 
 
+def _maybe_enable_autostart() -> None:
+    if load_autostart_initialized():
+        return
+    try:
+        from autostart import enable
+        enable()
+    except Exception:
+        pass
+    save_autostart_initialized()
+
+
 def main() -> None:
     args = sys.argv[1:]
     username = _get_username()
+    _maybe_enable_autostart()
 
-    if args and args[0] in ("host", "connect", "relay"):
+    if "--autoconnect" in args:
+        asyncio.run(_run_autoconnect(username))
+    elif args and args[0] in ("host", "connect", "relay"):
         asyncio.run(_run_cli(username, args))
     elif args:
         _usage()
