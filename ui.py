@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import urllib.request
 from datetime import datetime
 
@@ -424,14 +425,27 @@ class ChatApp(App):
         self._recv_worker = self.run_worker(self._receive_loop(), exclusive=False)
         await self._refresh_online()
 
+    _URL_RE = re.compile(r'https?://\S+')
+
     def _append(self, user: str, text: str, ts: str, own: bool) -> None:
         log = self.query_one("#messages", RichLog)
         name_color = "#888888" if own else "#ffaa00"
-        log.write(
-            Text.from_markup(
-                f"[dim]{ts}[/dim]  [{name_color}]{user}[/{name_color}]  {text}"
-            )
-        )
+
+        line = Text(no_wrap=False)
+        line.append(ts, style="dim")
+        line.append("  ")
+        line.append(user, style=name_color)
+        line.append("  ")
+
+        last = 0
+        for m in self._URL_RE.finditer(text):
+            if m.start() > last:
+                line.append(text[last:m.start()])
+            line.append(m.group(), style="#4a7c59 underline")
+            last = m.end()
+        line.append(text[last:])
+
+        log.write(line)
         if self._history:
             self._history.log(ts, user, text)
         if not own:
