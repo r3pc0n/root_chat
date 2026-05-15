@@ -55,7 +55,12 @@ async def ws_endpoint(
     try:
         while True:
             data = await websocket.receive_text()
-            await _broadcast(room, websocket, json.loads(data))
+            msg = json.loads(data)
+            to_user = msg.get("to")
+            if to_user:
+                await _send_dm(room, websocket, msg, to_user)
+            else:
+                await _broadcast(room, websocket, msg)
     except WebSocketDisconnect:
         pass
     finally:
@@ -74,6 +79,18 @@ async def _broadcast(room: str, sender: WebSocket | None, msg: dict) -> None:
                 await ws.send_text(data)
             except Exception:
                 pass
+
+
+async def _send_dm(room: str, sender: WebSocket, msg: dict, to_user: str) -> None:
+    data = json.dumps(msg)
+    for uname, ws in list(rooms.get(room, [])):
+        if ws is not sender and uname == to_user:
+            try:
+                await ws.send_text(data)
+            except Exception:
+                pass
+            return
+    log.info(f"DM to {to_user!r} not delivered — not in room")
 
 
 def _system_msg(text: str) -> dict:

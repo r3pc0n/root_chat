@@ -17,20 +17,24 @@ class ChatMessage:
     user: str
     text: str
     ts: str
+    to: str | None = None
 
 
 def _encode(msg: ChatMessage) -> bytes:
-    return (json.dumps({"user": msg.user, "text": msg.text, "ts": msg.ts}) + "\n").encode()
+    d: dict = {"user": msg.user, "text": msg.text, "ts": msg.ts}
+    if msg.to:
+        d["to"] = msg.to
+    return (json.dumps(d) + "\n").encode()
 
 
 def _decode_bytes(line: bytes) -> ChatMessage:
     data = json.loads(line.decode().strip())
-    return ChatMessage(**data)
+    return ChatMessage(user=data["user"], text=data["text"], ts=data["ts"], to=data.get("to"))
 
 
 def _decode_str(text: str) -> ChatMessage:
     data = json.loads(text)
-    return ChatMessage(**data)
+    return ChatMessage(user=data["user"], text=data["text"], ts=data["ts"], to=data.get("to"))
 
 
 class BaseConnection:
@@ -126,7 +130,10 @@ class RelayConnection(BaseConnection):
 
     async def send(self, msg: ChatMessage) -> None:
         text = encrypt(self._encryption_key, msg.text.encode()).decode() if self._encryption_key else msg.text
-        await self._ws.send(json.dumps({"user": msg.user, "text": text, "ts": msg.ts}))
+        payload: dict = {"user": msg.user, "text": text, "ts": msg.ts}
+        if msg.to:
+            payload["to"] = msg.to
+        await self._ws.send(json.dumps(payload))
 
     async def receive(self) -> ChatMessage | None:
         try:
@@ -135,7 +142,7 @@ class RelayConnection(BaseConnection):
             if self._encryption_key and msg.user != "·":
                 try:
                     decrypted = decrypt(self._encryption_key, msg.text.encode()).decode()
-                    return ChatMessage(user=msg.user, text=decrypted, ts=msg.ts)
+                    return ChatMessage(user=msg.user, text=decrypted, ts=msg.ts, to=msg.to)
                 except (InvalidTag, ValueError, KeyError):
                     return None
             return msg

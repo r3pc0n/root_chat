@@ -159,7 +159,7 @@ class ChatApp(App):
                         self._system("connection closed")
                         self.query_one("#chat-input", Input).disabled = True
                 break
-            self._append(msg.user, msg.text, msg.ts, own=False)
+            self._append(msg.user, msg.text, msg.ts, own=False, to=msg.to)
 
     async def _auto_reconnect(self) -> None:
         self.query_one("#chat-input", Input).disabled = True
@@ -246,6 +246,8 @@ class ChatApp(App):
     _COMMANDS = [
         "/room <name>",
         "/name <newname>",
+        "/dm <user>",
+        "/msg <user> <text>",
         "/connect [n|new|edit n|delete n]",
         "/add <username>",
         "/remove <username>",
@@ -331,7 +333,46 @@ class ChatApp(App):
         cmd = parts[0].lower()
         arg = parts[1].strip() if len(parts) > 1 else ""
 
-        if cmd == "/quit":
+        if cmd == "/dm":
+            if not isinstance(self.conn, RelayConnection):
+                self._system("private chats only available in relay mode")
+                return
+            if not arg:
+                self._system("usage: /dm <username>")
+                return
+            dm_to = arg.strip()
+            if dm_to == self.username:
+                self._system("you cannot DM yourself")
+                return
+            dm_room = "dm_" + "_".join(sorted([self.username, dm_to]))
+            ts = datetime.now().strftime("%H:%M")
+            if dm_to in self._online_users:
+                await self.conn.send(ChatMessage(
+                    user=self.username,
+                    text=f"wants to start a private chat  ·  /dm {self.username} to join",
+                    ts=ts,
+                    to=dm_to,
+                ))
+            await self._reconnect_relay(dm_room, f"private chat with {dm_to}")
+        elif cmd == "/msg":
+            if not isinstance(self.conn, RelayConnection):
+                self._system("private messages only available in relay mode")
+                return
+            parts_inner = arg.split(maxsplit=1)
+            if len(parts_inner) < 2:
+                self._system("usage: /msg <username> <message>")
+                return
+            dm_to, dm_text = parts_inner[0], parts_inner[1].strip()
+            if not dm_text:
+                self._system("usage: /msg <username> <message>")
+                return
+            if dm_to not in self._online_users:
+                self._system(f"{dm_to} is not in this room")
+                return
+            ts = datetime.now().strftime("%H:%M")
+            await self.conn.send(ChatMessage(user=self.username, text=dm_text, ts=ts, to=dm_to))
+            self._append(self.username, dm_text, ts, own=True, to=dm_to)
+        elif cmd == "/quit":
             self._exit_with(None)
         elif cmd == "/connect":
             if not self._connections:
@@ -428,6 +469,8 @@ class ChatApp(App):
         elif cmd == "/help":
             self._system("/room <name>          switch relay room")
             self._system("/name <newname>        change your username")
+            self._system("/dm <user>             open a private chat")
+            self._system("/msg <user> <text>     send a one-off private message")
             self._system("/connect               list saved connections")
             self._system("/connect <n>           switch to connection n")
             self._system("/connect new           add a new connection")
@@ -469,7 +512,7 @@ class ChatApp(App):
 
     _URL_RE = re.compile(r'https?://\S+')
 
-    def _append(self, user: str, text: str, ts: str, own: bool) -> None:
+    def _append(self, user: str, text: str, ts: str, own: bool, to: str | None = None) -> None:
         log = self.query_one("#messages", RichLog)
         name_color = "#888888" if own else "#ffaa00"
 
@@ -477,6 +520,9 @@ class ChatApp(App):
         line.append(ts, style="dim")
         line.append("  ")
         line.append(user, style=name_color)
+        if to:
+            dm_label = f" → {to}" if own else " → you"
+            line.append(dm_label, style="#555555")
         line.append("  ")
 
         last = 0
