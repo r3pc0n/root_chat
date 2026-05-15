@@ -107,12 +107,14 @@ class RelayConnection(BaseConnection):
         room: str,
         encryption_key: bytes | None = None,
         room_password: str | None = None,
+        relay_key: str | None = None,
     ) -> None:
         self._ws = ws
         self._server_url = server_url
         self._room = room
         self._encryption_key = encryption_key
         self._room_password = room_password
+        self._relay_key = relay_key
 
     @property
     def peer_addr(self) -> str:
@@ -174,10 +176,15 @@ async def connect(ip: str, port: int = DEFAULT_PORT, keypair: KeyPair | None = N
 
 
 async def relay_connect(
-    server_url: str, username: str, room: str = "default", room_password: str | None = None
+    server_url: str,
+    username: str,
+    room: str = "default",
+    room_password: str | None = None,
+    relay_key: str | None = None,
 ) -> RelayConnection:
     import websockets
     url = f"{server_url}/ws?username={username}&room={room}"
-    ws = await websockets.connect(url)
+    headers = {"Authorization": f"Bearer {relay_key}"} if relay_key else {}
+    ws = await websockets.connect(url, extra_headers=headers)
     key = derive_room_key(room_password, room) if room_password else None
-    return RelayConnection(ws, server_url, room, encryption_key=key, room_password=room_password)
+    return RelayConnection(ws, server_url, room, encryption_key=key, room_password=room_password, relay_key=relay_key)

@@ -2,16 +2,27 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from collections import defaultdict
 from datetime import datetime
 
+from dotenv import load_dotenv
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
+
+load_dotenv()
+
+RELAY_API_KEY = os.getenv("RELAY_API_KEY", "")
 
 app = FastAPI()
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s  %(message)s", datefmt="%H:%M:%S")
 log = logging.getLogger(__name__)
+
+if RELAY_API_KEY:
+    log.info("relay auth enabled")
+else:
+    log.warning("RELAY_API_KEY not set — relay is open, anyone can connect")
 
 # room -> list of (username, websocket)
 rooms: dict[str, list[tuple[str, WebSocket]]] = defaultdict(list)
@@ -29,6 +40,12 @@ async def ws_endpoint(
     username: str = "anonymous",
     room: str = "default",
 ) -> None:
+    if RELAY_API_KEY:
+        auth = websocket.headers.get("authorization", "")
+        if auth != f"Bearer {RELAY_API_KEY}":
+            await websocket.close(code=1008)
+            log.warning(f"rejected {websocket.client} — invalid API key")
+            return
     await websocket.accept()
     rooms[room].append((username, websocket))
     log.info(f"{username} joined [{room}]  ({len(rooms[room])} in room)")

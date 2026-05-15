@@ -42,6 +42,12 @@ def _parse_key(args: list[str]) -> str | None:
     return None
 
 
+def _parse_relay_key(args: list[str]) -> str | None:
+    if "--relay-key" in args:
+        return args[args.index("--relay-key") + 1]
+    return None
+
+
 def _normalize_url(url: str) -> str:
     if url.startswith("http://"):
         return url.replace("http://", "ws://", 1)
@@ -60,7 +66,7 @@ def _usage() -> None:
     print()
     print("examples:")
     print("  python main.py relay ws://localhost:7332")
-    print("  python main.py relay wss://relay.example.com --room friends --key mysecretpassword")
+    print("  python main.py relay wss://relay.example.com --room friends --relay-key serverpass --key msgpass")
 
 
 async def _run_host(username: str, port: int) -> None:
@@ -90,7 +96,7 @@ async def _run_connect(username: str, ip: str, port: int) -> None:
     await ChatApp(username=username, conn=conn, mode="client").run_async()
 
 
-async def _run_relay(username: str, server_url: str, room: str, room_password: str | None) -> None:
+async def _run_relay(username: str, server_url: str, room: str, room_password: str | None, relay_key: str | None) -> None:
     if room_password:
         print(f"  deriving room key ...")
     attempt = 0
@@ -98,7 +104,7 @@ async def _run_relay(username: str, server_url: str, room: str, room_password: s
         try:
             suffix = f" (attempt {attempt + 1})" if attempt > 0 else ""
             print(f"  connecting to relay {server_url} [{room}] ...{suffix}")
-            conn = await relay_connect(server_url, username, room, room_password=room_password)
+            conn = await relay_connect(server_url, username, room, room_password=room_password, relay_key=relay_key)
             break
         except Exception:
             attempt += 1
@@ -137,7 +143,8 @@ def main() -> None:
         server_url = _normalize_url(args[1].rstrip("/"))
         room = _parse_room(args)
         room_password = _parse_key(args)
-        asyncio.run(_run_relay(username, server_url, room, room_password))
+        relay_key = _parse_relay_key(args)
+        asyncio.run(_run_relay(username, server_url, room, room_password, relay_key))
 
     else:
         print(f"  unknown mode: {mode}")

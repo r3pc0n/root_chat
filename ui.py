@@ -309,6 +309,7 @@ class ChatApp(App):
     async def _reconnect_relay(self, room: str, success_msg: str) -> None:
         server_url = self.conn._server_url
         room_password = getattr(self.conn, "_room_password", None)
+        relay_key = getattr(self.conn, "_relay_key", None)
 
         self._switching_room = True
         if self._recv_worker:
@@ -316,7 +317,7 @@ class ChatApp(App):
         self.conn.close()
 
         try:
-            self.conn = await relay_connect(server_url, self.username, room, room_password=room_password)
+            self.conn = await relay_connect(server_url, self.username, room, room_password=room_password, relay_key=relay_key)
         except Exception:
             self._switching_room = False
             self._system("failed to reconnect")
