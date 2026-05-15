@@ -263,13 +263,22 @@ class ChatApp(App):
                 return
             self.username = arg
             save_username(self.username)
-            self._update_status()
-            self._system(f"you are now known as {self.username}")
+            if isinstance(self.conn, RelayConnection):
+                await self._reconnect_relay(self.conn._room, f"you are now known as {self.username}")
+            else:
+                self._update_status()
+                self._system(f"you are now known as {self.username}")
         elif cmd == "/room":
             if not arg:
                 self._system("usage: /room <name>")
                 return
-            await self._switch_room(arg)
+            if not isinstance(self.conn, RelayConnection):
+                self._system("room switching only available in relay mode")
+                return
+            if arg == self.conn._room:
+                self._system(f"already in [{arg}]")
+                return
+            await self._reconnect_relay(arg, f"joined [{arg}]")
         elif cmd == "/add":
             if not arg:
                 self._system("usage: /add <username>")
@@ -297,31 +306,20 @@ class ChatApp(App):
         else:
             self._system(f"unknown command: {cmd}  (try /name, /room, /add, /remove, /quit)")
 
-    async def _switch_room(self, new_room: str) -> None:
-        if not isinstance(self.conn, RelayConnection):
-            self._system("room switching only available in relay mode")
-            return
-
+    async def _reconnect_relay(self, room: str, success_msg: str) -> None:
         server_url = self.conn._server_url
-        old_room = self.conn._room
+        room_password = getattr(self.conn, "_room_password", None)
 
-        if new_room == old_room:
-            self._system(f"already in [{old_room}]")
-            return
-
-        self._system(f"switching to [{new_room}]...")
         self._switching_room = True
-
         if self._recv_worker:
             self._recv_worker.cancel()
         self.conn.close()
 
-        room_password = getattr(self.conn, "_room_password", None)
         try:
-            self.conn = await relay_connect(server_url, self.username, new_room, room_password=room_password)
+            self.conn = await relay_connect(server_url, self.username, room, room_password=room_password)
         except Exception:
             self._switching_room = False
-            self._system("failed to connect to new room")
+            self._system("failed to reconnect")
             return
 
         self._switching_room = False
@@ -329,7 +327,7 @@ class ChatApp(App):
         self.query_one("#chat-input", Input).disabled = False
         self._update_status()
         self._render_sidebar()
-        self._system(f"joined [{new_room}]")
+        self._system(success_msg)
         self._recv_worker = self.run_worker(self._receive_loop(), exclusive=False)
         await self._refresh_online()
 
