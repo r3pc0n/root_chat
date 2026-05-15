@@ -4,6 +4,7 @@ import asyncio
 import sys
 
 from config import load_username, save_username
+from crypto import fingerprint as key_fingerprint, get_or_create_keypair
 from network import DEFAULT_PORT, connect, host, relay_connect
 from ui import ChatApp
 
@@ -35,6 +36,12 @@ def _parse_room(args: list[str]) -> str:
     return "default"
 
 
+def _parse_key(args: list[str]) -> str | None:
+    if "--key" in args:
+        return args[args.index("--key") + 1]
+    return None
+
+
 def _normalize_url(url: str) -> str:
     if url.startswith("http://"):
         return url.replace("http://", "ws://", 1)
@@ -53,37 +60,45 @@ def _usage() -> None:
     print()
     print("examples:")
     print("  python main.py relay ws://localhost:7332")
-    print("  python main.py relay wss://relay.example.com --room friends")
+    print("  python main.py relay wss://relay.example.com --room friends --key mysecretpassword")
 
 
 async def _run_host(username: str, port: int) -> None:
+    keypair = get_or_create_keypair()
+    print(f"  your key:  {key_fingerprint(keypair.public_bytes)}")
     print(f"  waiting for connection on port {port} ...")
-    conn = await host(port)
+    conn = await host(port, keypair=keypair)
+    print(f"  peer key:  {conn.peer_fingerprint}  [verify with your peer]")
     await ChatApp(username=username, conn=conn, mode="host").run_async()
 
 
 async def _run_connect(username: str, ip: str, port: int) -> None:
+    keypair = get_or_create_keypair()
+    print(f"  your key:  {key_fingerprint(keypair.public_bytes)}")
     attempt = 0
     while True:
         try:
             suffix = f" (attempt {attempt + 1})" if attempt > 0 else ""
             print(f"  connecting to {ip}:{port} ...{suffix}")
-            conn = await connect(ip, port)
+            conn = await connect(ip, port, keypair=keypair)
             break
         except (ConnectionRefusedError, OSError):
             attempt += 1
             print(f"  host not available, retrying in 2s...")
             await asyncio.sleep(2)
+    print(f"  peer key:  {conn.peer_fingerprint}  [verify with your peer]")
     await ChatApp(username=username, conn=conn, mode="client").run_async()
 
 
-async def _run_relay(username: str, server_url: str, room: str) -> None:
+async def _run_relay(username: str, server_url: str, room: str, room_password: str | None) -> None:
+    if room_password:
+        print(f"  deriving room key ...")
     attempt = 0
     while True:
         try:
             suffix = f" (attempt {attempt + 1})" if attempt > 0 else ""
             print(f"  connecting to relay {server_url} [{room}] ...{suffix}")
-            conn = await relay_connect(server_url, username, room)
+            conn = await relay_connect(server_url, username, room, room_password=room_password)
             break
         except Exception:
             attempt += 1
@@ -121,7 +136,8 @@ def main() -> None:
             sys.exit(1)
         server_url = _normalize_url(args[1].rstrip("/"))
         room = _parse_room(args)
-        asyncio.run(_run_relay(username, server_url, room))
+        room_password = _parse_key(args)
+        asyncio.run(_run_relay(username, server_url, room, room_password))
 
     else:
         print(f"  unknown mode: {mode}")

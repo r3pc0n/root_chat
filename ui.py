@@ -110,9 +110,10 @@ class ChatApp(App):
         self._notifications_enabled = True
 
     def _status_left(self) -> str:
+        enc = "  ·  [#4a7c59][[e2e]][/]" if self.conn.encrypted else ""
         if isinstance(self.conn, RelayConnection):
-            return f"  ROOT CHAT  ·  [{self.mode}]  ·  you: {self.username}  ·  room: {self.conn._room}"
-        return f"  ROOT CHAT  ·  [{self.mode}]  ·  you: {self.username}  ·  peer: {self.conn.peer_addr}"
+            return f"  ROOT CHAT  ·  [[{self.mode}]]  ·  you: {self.username}  ·  room: [[{self.conn._room}]]{enc}"
+        return f"  ROOT CHAT  ·  [[{self.mode}]]  ·  you: {self.username}  ·  peer: {self.conn.peer_addr}{enc}"
 
     def _status_right(self) -> str:
         if isinstance(self.conn, RelayConnection):
@@ -137,6 +138,9 @@ class ChatApp(App):
         self._history = History(self.conn.peer_addr)
         self.query_one("#chat-input", Input).focus()
         self._system(f"connected to {self.conn.peer_addr}")
+        peer_fp = getattr(self.conn, "peer_fingerprint", None)
+        if peer_fp:
+            self._system(f"peer fingerprint: {peer_fp}")
         self._recv_worker = self.run_worker(self._receive_loop(), exclusive=False)
         self._render_sidebar()
         self.set_interval(5.0, self._refresh_online)
@@ -312,8 +316,9 @@ class ChatApp(App):
             self._recv_worker.cancel()
         self.conn.close()
 
+        room_password = getattr(self.conn, "_room_password", None)
         try:
-            self.conn = await relay_connect(server_url, self.username, new_room)
+            self.conn = await relay_connect(server_url, self.username, new_room, room_password=room_password)
         except Exception:
             self._switching_room = False
             self._system("failed to connect to new room")

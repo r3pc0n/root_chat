@@ -10,12 +10,14 @@ A minimal terminal P2P chat app for direct or relay-based messaging between peop
 - Chat history saved locally per session
 - System notifications for new messages and @mentions
 - Slash commands: /room, /name, /add, /remove, /mute, /unmute, /quit
+- **E2E encryption** — direct mode: automatic X25519 handshake + ChaCha20-Poly1305; relay mode: `--key <password>` pre-shared key
 
 ## Stack
 - **Textual** — terminal UI framework (asyncio-based)
 - **FastAPI + uvicorn** — relay server with WebSocket support
 - **websockets** — WebSocket client for relay mode
 - **asyncio** — networking throughout (TCP for direct, WebSocket for relay)
+- **cryptography** — X25519 key exchange, ChaCha20-Poly1305 AEAD, HKDF, PBKDF2
 
 ## File overview
 | File | Purpose |
@@ -24,6 +26,7 @@ A minimal terminal P2P chat app for direct or relay-based messaging between peop
 | `network.py` | `BaseConnection`, `Connection` (TCP), `RelayConnection` (WebSocket), connect/host/relay_connect |
 | `ui.py` | Textual `ChatApp` — message display, input, slash commands, status bar, sidebar |
 | `config.py` | Load/save username to `~/.rootchat/config.json` |
+| `crypto.py` | E2E encryption — X25519 keypair persistence, DH handshake, ChaCha20-Poly1305 encrypt/decrypt, PBKDF2 room key derivation |
 | `history.py` | Per-session log files in `~/.rootchat/logs/` |
 | `contacts.py` | Load/save/add/remove contacts in `~/.rootchat/contacts.json` |
 | `notifications.py` | OS notifications — Windows (WinRT toast) and Linux (notify-send) |
@@ -96,6 +99,20 @@ Newline-delimited JSON over TCP, plain JSON strings over WebSocket:
 - Regular message: title `· username`; mention (username in text): title `@ username`
 - Mute state is session-only (not persisted)
 
+### E2E encryption
+
+**Direct mode** — automatic, no config needed:
+- Persistent X25519 keypair generated on first run, saved to `~/.rootchat/identity.json`
+- After TCP connect, host sends its public key (32 bytes), client reads then sends its own; both derive the same session key via `HKDF(SHA-256)` over the raw DH output
+- Messages encrypted with ChaCha20-Poly1305 (random 12-byte nonce per message), base64-encoded on the wire
+- Peer fingerprint (SHA-256 of public key, first 16 hex chars) printed on connect and shown in the UI
+
+**Relay mode** — opt-in with `--key <password>`:
+- PBKDF2-HMAC-SHA256 (100k iterations) derives a 32-byte symmetric key from password + room name
+- Same password in different rooms produces different keys
+- Only the `text` field of each message is encrypted; `user` and `ts` are still visible to the relay server
+- Relay server sees base64 blobs instead of plaintext; system messages (`user == "·"`) are not encrypted
+
 ### Network separation
 Network code (`network.py`) is intentionally kept separate from UI (`ui.py`) to make a future Go rewrite straightforward.
 
@@ -113,6 +130,7 @@ pip install -r requirements.txt
 python main.py host
 python main.py connect 127.0.0.1
 python main.py relay wss://rootchat-server.ddns.net --room test
+python main.py relay wss://rootchat-server.ddns.net --room test --key mysecretpassword
 
 # Start relay server locally for testing
 cd server
@@ -134,7 +152,6 @@ sudo journalctl -u rootchat-relay -f
 ```
 
 ## Parked / future
-1. **End-to-end encryption** — server currently sees plaintext (TLS in transit only); E2E for direct mode is feasible, group E2E is complex
-2. **Go rewrite** — potential future rewrite for single-binary distribution
-3. **Relay server** — currently no authentication; anyone with the URL can connect
-4. **Notification mute persistence** — currently session-only
+1. **Go rewrite** — potential future rewrite for single-binary distribution
+2. **Relay server** — currently no authentication; anyone with the URL can connect
+3. **Notification mute persistence** — currently session-only
