@@ -466,7 +466,7 @@ class ChatApp(App):
             current = self.conn._room
             for name, users in sorted(rooms.items()):
                 marker = "▶" if name == current else " "
-                self._system(f"{marker} [{name}]  —  {len(users)} online: {', '.join(users)}")
+                self._system(f"{marker} \[{name}]  —  {len(users)} online: {', '.join(users)}")
         elif cmd == "/add":
             if not arg:
                 self._system("usage: /add <username>")
