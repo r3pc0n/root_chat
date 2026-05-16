@@ -8,8 +8,5 @@ venv/
 .env
 *.log
 .DS_Store
-.claude/
-resume-claude-project.txt
-CLAUDE.md
 site/index-release.html
 site/index.html
