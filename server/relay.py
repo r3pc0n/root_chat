@@ -73,12 +73,15 @@ async def ws_endpoint(
 
 async def _broadcast(room: str, sender: WebSocket | None, msg: dict) -> None:
     data = json.dumps(msg)
+    dead: list[WebSocket] = []
     for _, ws in list(rooms.get(room, [])):
         if ws is not sender:
             try:
                 await ws.send_text(data)
             except Exception:
-                pass
+                dead.append(ws)
+    if dead:
+        rooms[room] = [(u, ws) for u, ws in rooms.get(room, []) if ws not in dead]
 
 
 async def _send_dm(room: str, sender: WebSocket, msg: dict, to_user: str) -> None:

@@ -281,7 +281,10 @@ class ChatApp(App):
             with urllib.request.urlopen(f"{http_url}/health", timeout=3) as resp:
                 data = json.loads(resp.read())
             latency = round((time.perf_counter() - t0) * 1000)
-            return data.get("rooms", {}).get(room, []), latency
+            users = data.get("rooms", {}).get(room, [])
+            seen: set[str] = set()
+            deduped = [u for u in users if not (u in seen or seen.add(u))]  # type: ignore[func-returns-value]
+            return deduped, latency
         except Exception:
             return self._online_users, self._latency_ms
 
