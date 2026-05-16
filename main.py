@@ -7,6 +7,7 @@ from config import (
     format_connection,
     load_autostart_initialized,
     load_connections,
+    load_first_launch,
     load_last_connection,
     load_username,
     save_autostart_initialized,
@@ -14,6 +15,15 @@ from config import (
     save_last_connection,
     save_username,
 )
+
+_DEFAULT_CONNECTION = {
+    "name": "public relay",
+    "mode": "relay",
+    "server_url": "wss://relay.root-chat.com",
+    "room": "public",
+    "relay_key": "",
+    "message_key": "",
+}
 from crypto import fingerprint as key_fingerprint, get_or_create_keypair
 from network import DEFAULT_PORT, BaseConnection, connect, host, relay_connect
 from ui import ChatApp
@@ -232,10 +242,15 @@ async def _run_interactive(username: str) -> None:
     connections = load_connections()
 
     if not connections:
-        conn_dict = _setup_connection()
-        connections = [conn_dict]
-        save_connections(connections)
-        print("\n  saved. connecting...\n")
+        if load_first_launch():
+            connections = [_DEFAULT_CONNECTION]
+            save_connections(connections)
+            print("\n  connecting to the public relay...\n")
+        else:
+            conn_dict = _setup_connection()
+            connections = [conn_dict]
+            save_connections(connections)
+            print("\n  saved. connecting...\n")
         idx = 0
     elif len(connections) == 1:
         print(f"\n  connecting to {connections[0]['name']}...\n")

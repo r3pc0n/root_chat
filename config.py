@@ -65,6 +65,16 @@ def save_autostart_initialized() -> None:
     _save(data)
 
 
+def load_first_launch() -> bool:
+    return _load().get("first_launch", True)
+
+
+def save_first_launch_done() -> None:
+    data = _load()
+    data["first_launch"] = False
+    _save(data)
+
+
 def format_connection(c: dict) -> str:
     name = c.get("name", "unnamed")
     mode = c.get("mode", "?")

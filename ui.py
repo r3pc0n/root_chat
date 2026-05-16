@@ -19,7 +19,7 @@ from textual.worker import Worker
 VERSION = "1.0"
 _UPDATE_URL = "https://api.github.com/repos/r3pc0n/root_chat/releases/latest"
 
-from config import format_connection, load_notifications_enabled, save_notifications_enabled, save_username
+from config import format_connection, load_first_launch, load_notifications_enabled, save_first_launch_done, save_notifications_enabled, save_username
 from contacts import add_contact, load_contacts, remove_contact
 from history import History
 from network import BaseConnection, ChatMessage, RelayConnection, relay_connect
@@ -156,6 +156,25 @@ class ChatApp(App):
         self._render_sidebar()
         self.set_interval(5.0, self._refresh_online)
         self.run_worker(self._check_update(), exclusive=False)
+        if load_first_launch():
+            self._show_welcome()
+            save_first_launch_done()
+
+    def _show_welcome(self) -> None:
+        self._system("welcome to root_chat  —  a minimal encrypted terminal chat")
+        self._system("you are in the public room  ·  anyone can join here")
+        self._system("")
+        self._system("commands:")
+        self._system("  /room <name>       join a different room")
+        self._system("  /dm <user>         start a private chat")
+        self._system("  /name <newname>    change your username")
+        self._system("  /add <user>        add someone to contacts")
+        self._system("  /help              show all commands")
+        self._system("")
+        self._system("to use your own relay server:")
+        self._system("  /connect new       add a new connection")
+        self._system("  /connect edit 1    edit this connection")
+        self._system("")
 
     async def _check_update(self) -> None:
         loop = asyncio.get_running_loop()
