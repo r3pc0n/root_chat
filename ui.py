@@ -16,7 +16,7 @@ from textual.containers import Horizontal
 from textual.widgets import Input, RichLog, Static
 from textual.worker import Worker
 
-VERSION = "1.0"
+VERSION = "1.1"
 _UPDATE_URL = "https://api.github.com/repos/r3pc0n/root_chat/releases/latest"
 
 from config import format_connection, load_notifications_enabled, load_show_welcome, save_notifications_enabled, save_show_welcome, save_username

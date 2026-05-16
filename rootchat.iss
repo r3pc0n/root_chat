@@ -1,5 +1,5 @@
 #define AppName "rootchat"
-#define AppVersion "1.0"
+#define AppVersion "1.1"
 #define AppPublisher "r3pc0n"
 #define AppURL "https://github.com/r3pc0n/root_chat"
 #define AppExeName "rootchat.exe"
