@@ -174,7 +174,7 @@ class ChatApp(App):
         self._system("  /connect new       add a new connection")
         self._system("  /connect edit 1    edit this connection")
         self._system("")
-        self._system("docs & more:  root-chat.com/docs")
+        self._system("[link=https://root-chat.com/docs.html]docs & more:  root-chat.com/docs[/link]")
 
     async def _check_update(self) -> None:
         loop = asyncio.get_running_loop()
