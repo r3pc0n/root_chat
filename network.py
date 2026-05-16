@@ -144,7 +144,7 @@ class RelayConnection(BaseConnection):
                     decrypted = decrypt(self._encryption_key, msg.text.encode()).decode()
                     return ChatMessage(user=msg.user, text=decrypted, ts=msg.ts, to=msg.to)
                 except (InvalidTag, ValueError, KeyError):
-                    return None
+                    return ChatMessage(user=msg.user, text="[encrypted — key mismatch]", ts=msg.ts, to=msg.to)
             return msg
         except Exception:
             return None
