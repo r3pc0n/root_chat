@@ -47,6 +47,14 @@ async def ws_endpoint(
             log.warning(f"rejected {websocket.client} — invalid API key")
             return
     await websocket.accept()
+    # Close any stale connections for this username in the room
+    stale = [ws for u, ws in rooms[room] if u == username]
+    for ws in stale:
+        try:
+            await ws.close()
+        except Exception:
+            pass
+    rooms[room] = [(u, ws) for u, ws in rooms[room] if u != username]
     rooms[room].append((username, websocket))
     log.info(f"{username} joined [{room}]  ({len(rooms[room])} in room)")
 
