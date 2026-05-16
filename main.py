@@ -7,7 +7,6 @@ from config import (
     format_connection,
     load_autostart_initialized,
     load_connections,
-    load_first_launch,
     load_last_connection,
     load_username,
     save_autostart_initialized,
@@ -242,15 +241,9 @@ async def _run_interactive(username: str) -> None:
     connections = load_connections()
 
     if not connections:
-        if load_first_launch():
-            connections = [_DEFAULT_CONNECTION]
-            save_connections(connections)
-            print("\n  connecting to the public relay...\n")
-        else:
-            conn_dict = _setup_connection()
-            connections = [conn_dict]
-            save_connections(connections)
-            print("\n  saved. connecting...\n")
+        connections = [_DEFAULT_CONNECTION]
+        save_connections(connections)
+        print("\n  connecting to the public relay...\n")
         idx = 0
     elif len(connections) == 1:
         print(f"\n  connecting to {connections[0]['name']}...\n")
