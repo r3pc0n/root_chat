@@ -19,7 +19,7 @@ from textual.worker import Worker
 VERSION = "1.0"
 _UPDATE_URL = "https://api.github.com/repos/r3pc0n/root_chat/releases/latest"
 
-from config import format_connection, load_first_launch, load_notifications_enabled, save_first_launch_done, save_notifications_enabled, save_username
+from config import format_connection, load_notifications_enabled, load_show_welcome, save_notifications_enabled, save_show_welcome, save_username
 from contacts import add_contact, load_contacts, remove_contact
 from history import History
 from network import BaseConnection, ChatMessage, RelayConnection, relay_connect
@@ -156,9 +156,8 @@ class ChatApp(App):
         self._render_sidebar()
         self.set_interval(5.0, self._refresh_online)
         self.run_worker(self._check_update(), exclusive=False)
-        if load_first_launch():
+        if load_show_welcome():
             self._show_welcome()
-            save_first_launch_done()
 
     def _show_welcome(self) -> None:
         self._system("welcome to root_chat  —  a minimal encrypted terminal chat")
@@ -336,6 +335,7 @@ class ChatApp(App):
     _COMMANDS = [
         "/update",
         "/restart",
+        "/welcome",
         "/rooms",
         "/room <name>",
         "/name <newname>",
@@ -587,6 +587,13 @@ class ChatApp(App):
                 self._system(f"{arg} is not in your contacts")
         elif cmd == "/clear":
             self.query_one("#messages", RichLog).clear()
+        elif cmd == "/welcome":
+            if load_show_welcome():
+                save_show_welcome(False)
+                self._system("welcome message disabled on startup  ·  /welcome to re-enable")
+            else:
+                save_show_welcome(True)
+                self._system("welcome message enabled on startup  ·  /welcome to disable")
         elif cmd == "/restart":
             import os
             self.conn.close()
@@ -597,6 +604,7 @@ class ChatApp(App):
         elif cmd == "/help":
             self._system("/update                check for and apply updates")
             self._system("/restart               restart rootchat")
+            self._system("/welcome               toggle startup welcome message")
             self._system("/rooms                 list active rooms on the relay")
             self._system("/room <name>          switch relay room")
             self._system("/name <newname>        change your username")

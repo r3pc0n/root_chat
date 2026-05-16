@@ -65,13 +65,13 @@ def save_autostart_initialized() -> None:
     _save(data)
 
 
-def load_first_launch() -> bool:
-    return _load().get("first_launch", True)
+def load_show_welcome() -> bool:
+    return _load().get("show_welcome", True)
 
 
-def save_first_launch_done() -> None:
+def save_show_welcome(enabled: bool) -> None:
     data = _load()
-    data["first_launch"] = False
+    data["show_welcome"] = enabled
     _save(data)
 
 
