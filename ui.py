@@ -161,7 +161,9 @@ class ChatApp(App):
 
     def _show_welcome(self) -> None:
         self._system("welcome to root_chat  —  a minimal encrypted terminal chat")
-        self._system("you are in the public room  ·  anyone can join here")
+        is_public = isinstance(self.conn, RelayConnection) and not getattr(self.conn, "_room_password", None) and not getattr(self.conn, "_relay_key", None)
+        if is_public:
+            self._system("you are in the public room  ·  anyone can join here")
         self._system("")
         self._system("commands:")
         self._welcome_cmd("/room <name>", "join a different room")
