@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import re
+import sys
 import time
 import urllib.request
 from datetime import datetime
@@ -195,7 +196,7 @@ class ChatApp(App):
                     cwd=root, capture_output=True, text=True, timeout=30,
                 )
                 if result.returncode == 0:
-                    self.call_from_thread(self._system, "git pull done  —  restart rootchat to use the new version")
+                    self.call_from_thread(self._system, "git pull done  —  type /restart to apply the update")
                 else:
                     self.call_from_thread(self._system, f"git pull failed: {result.stderr.strip()}")
             except Exception as e:
@@ -313,6 +314,7 @@ class ChatApp(App):
     # add new commands here — hint bar picks them up automatically
     _COMMANDS = [
         "/update",
+        "/restart",
         "/rooms",
         "/room <name>",
         "/name <newname>",
@@ -564,11 +566,16 @@ class ChatApp(App):
                 self._system(f"{arg} is not in your contacts")
         elif cmd == "/clear":
             self.query_one("#messages", RichLog).clear()
+        elif cmd == "/restart":
+            import os
+            self.conn.close()
+            os.execv(sys.executable, [sys.executable] + sys.argv)
         elif cmd == "/update":
             loop = asyncio.get_event_loop()
             await loop.run_in_executor(None, self._do_update)
         elif cmd == "/help":
             self._system("/update                check for and apply updates")
+            self._system("/restart               restart rootchat")
             self._system("/rooms                 list active rooms on the relay")
             self._system("/room <name>          switch relay room")
             self._system("/name <newname>        change your username")
