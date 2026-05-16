@@ -47,13 +47,7 @@ async def ws_endpoint(
             log.warning(f"rejected {websocket.client} — invalid API key")
             return
     await websocket.accept()
-    # Close any stale connections for this username in the room
-    stale = [ws for u, ws in rooms[room] if u == username]
-    for ws in stale:
-        try:
-            await ws.close()
-        except Exception:
-            pass
+    # Silently replace any stale entries for this username (don't close — force-close triggers reconnect loops)
     rooms[room] = [(u, ws) for u, ws in rooms[room] if u != username]
     rooms[room].append((username, websocket))
     log.info(f"{username} joined [{room}]  ({len(rooms[room])} in room)")
@@ -76,20 +70,19 @@ async def ws_endpoint(
         if not rooms[room]:
             del rooms[room]
         log.info(f"{username} left [{room}]")
-        await _broadcast(room, None, _system_msg(f"{username} left"))
+        # Only broadcast "left" if the user hasn't already reconnected with a new websocket
+        if not any(u == username for u, _ in rooms.get(room, [])):
+            await _broadcast(room, None, _system_msg(f"{username} left"))
 
 
 async def _broadcast(room: str, sender: WebSocket | None, msg: dict) -> None:
     data = json.dumps(msg)
-    dead: list[WebSocket] = []
     for _, ws in list(rooms.get(room, [])):
         if ws is not sender:
             try:
                 await ws.send_text(data)
             except Exception:
-                dead.append(ws)
-    if dead:
-        rooms[room] = [(u, ws) for u, ws in rooms.get(room, []) if ws not in dead]
+                pass
 
 
 async def _send_dm(room: str, sender: WebSocket, msg: dict, to_user: str) -> None:
