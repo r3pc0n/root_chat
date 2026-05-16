@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import re
+import time
 import urllib.request
 from datetime import datetime
 
@@ -109,6 +110,7 @@ class ChatApp(App):
         self._recv_worker: Worker | None = None
         self._switching_room = False
         self._online_users: list[str] = []
+        self._latency_ms: int | None = None
         self._sidebar_visible = True
         self._notifications_enabled = load_notifications_enabled()
 
@@ -120,7 +122,8 @@ class ChatApp(App):
 
     def _status_right(self) -> str:
         if isinstance(self.conn, RelayConnection):
-            return f"{self.conn._server_url.split('://')[-1]}  "
+            latency = f"  ·  {self._latency_ms}ms" if self._latency_ms is not None else ""
+            return f"{self.conn._server_url.split('://')[-1]}{latency}  "
         return ""
 
     def _update_status(self) -> None:
@@ -191,22 +194,26 @@ class ChatApp(App):
         if not isinstance(self.conn, RelayConnection):
             return
         loop = asyncio.get_running_loop()
-        users = await loop.run_in_executor(None, self._fetch_online_sync)
+        users, latency = await loop.run_in_executor(None, self._fetch_online_sync)
         self._online_users = users
+        self._latency_ms = latency
+        self._update_status()
         self._render_sidebar()
 
-    def _fetch_online_sync(self) -> list[str]:
+    def _fetch_online_sync(self) -> tuple[list[str], int | None]:
         if not isinstance(self.conn, RelayConnection):
-            return []
+            return [], None
         server_url = self.conn._server_url
         room = self.conn._room
         http_url = server_url.replace("wss://", "https://").replace("ws://", "http://")
         try:
+            t0 = time.perf_counter()
             with urllib.request.urlopen(f"{http_url}/health", timeout=3) as resp:
                 data = json.loads(resp.read())
-                return data.get("rooms", {}).get(room, [])
+            latency = round((time.perf_counter() - t0) * 1000)
+            return data.get("rooms", {}).get(room, []), latency
         except Exception:
-            return self._online_users
+            return self._online_users, self._latency_ms
 
     def _fetch_all_rooms(self) -> dict[str, list[str]] | None:
         if not isinstance(self.conn, RelayConnection):
