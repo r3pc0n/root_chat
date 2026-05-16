@@ -175,6 +175,7 @@ class ChatApp(App):
         self._system("  /connect new       add a new connection")
         self._system("  /connect edit 1    edit this connection")
         self._system("")
+        self._system("docs & more:  root-chat.com/docs")
 
     async def _check_update(self) -> None:
         loop = asyncio.get_running_loop()
@@ -301,7 +302,8 @@ class ChatApp(App):
         lines: list[str] = [""]  # top padding
 
         if isinstance(self.conn, RelayConnection):
-            lines.append("  [dim]in room[/dim]")
+            room = self.conn._room
+            lines.append(f"  [dim]in room · {room}[/dim]")
             lines.append("  [dim]───────[/dim]")
             if self._online_users:
                 for user in self._online_users:

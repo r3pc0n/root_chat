@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>root_chat — docs</title>
+  <meta name="description" content="root_chat documentation — commands, setup, relay server">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0d0d0d;
+      color: #888888;
+      font-family: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', 'Consolas', ui-monospace, monospace;
+      font-size: 14px;
+      line-height: 1.7;
+      min-height: 100vh;
+    }
+
+    .status-bar {
+      background: #141414;
+      border-bottom: 1px solid #1e1e1e;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 2rem;
+      font-size: 13px;
+      color: #444444;
+    }
+
+    .status-bar a { color: #3a3a3a; text-decoration: none; }
+    .status-bar a:hover { color: #666666; }
+
+    main {
+      max-width: 700px;
+      margin: 0 auto;
+      padding: 5rem 2rem 4rem;
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 400;
+      color: #cccccc;
+      letter-spacing: -0.5px;
+      margin-bottom: 0.25rem;
+    }
+
+    .tagline {
+      color: #333333;
+      margin-bottom: 3.5rem;
+      font-size: 13px;
+    }
+
+    section { margin-bottom: 3.5rem; }
+
+    .label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: #2e2e2e;
+      margin-bottom: 1.25rem;
+    }
+
+    h3 {
+      font-size: 13px;
+      font-weight: 400;
+      color: #666666;
+      margin: 1.5rem 0 0.5rem;
+    }
+
+    p { color: #555555; margin-bottom: 0.75rem; }
+
+    ul { list-style: none; margin-bottom: 0.75rem; }
+
+    ul li {
+      color: #555555;
+      padding: 0.1rem 0;
+    }
+
+    ul li::before { content: '·  '; color: #2e2e2e; }
+
+    .cmd-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      margin-bottom: 0.5rem;
+    }
+
+    .cmd-table tr { border-bottom: 1px solid #141414; }
+    .cmd-table tr:last-child { border-bottom: none; }
+
+    .cmd-table td {
+      padding: 0.3rem 0;
+      color: #555555;
+      vertical-align: top;
+    }
+
+    .cmd-table td:first-child {
+      color: #777777;
+      width: 55%;
+      padding-right: 1rem;
+    }
+
+    .code-block {
+      border: 1px solid #1e1e1e;
+      padding: 0.85rem 1.25rem;
+      font-size: 13px;
+      color: #555555;
+      margin-bottom: 0.75rem;
+    }
+
+    .code-block .prompt { color: #333333; }
+    .code-block .cmd    { color: #888888; }
+    .code-block .comment { color: #2e2e2e; }
+
+    footer {
+      border-top: 1px solid #1a1a1a;
+      padding-top: 1.5rem;
+      font-size: 12px;
+      color: #2e2e2e;
+      display: flex;
+      gap: 1.5rem;
+      flex-wrap: wrap;
+    }
+
+    footer a { color: #3a3a3a; text-decoration: none; }
+    footer a:hover { color: #666666; }
+
+    a.inline { color: #4a7c59; text-decoration: none; }
+    a.inline:hover { color: #6aac79; }
+  </style>
+</head>
+<body>
+
+<div class="status-bar">
+  <span>root_chat  ·  docs</span>
+  <a href="/">root-chat.com</a>
+</div>
+
+<main>
+
+  <h1>docs</h1>
+  <p class="tagline">everything you need to know about root_chat</p>
+
+  <!-- GETTING STARTED -->
+  <section>
+    <p class="label">getting started</p>
+    <p>On first launch, root_chat connects you to the public relay in the <code>public</code> room. You can chat with anyone there, or switch to a private room or your own relay server.</p>
+
+    <h3>change your username</h3>
+    <div class="code-block">
+      <span class="prompt">/</span><span class="cmd">name yourname</span>
+    </div>
+
+    <h3>join a different room</h3>
+    <div class="code-block">
+      <span class="prompt">/</span><span class="cmd">room myroom</span>
+    </div>
+    <p>Rooms are created automatically — pick any name for a private space. Share the name with others to meet there.</p>
+  </section>
+
+  <!-- COMMANDS -->
+  <section>
+    <p class="label">commands</p>
+    <table class="cmd-table">
+      <tr><td>/room &lt;name&gt;</td><td>switch to a different room</td></tr>
+      <tr><td>/rooms</td><td>list all active rooms on the relay</td></tr>
+      <tr><td>/name &lt;newname&gt;</td><td>change your username</td></tr>
+      <tr><td>/dm &lt;user&gt;</td><td>open a private chat with someone</td></tr>
+      <tr><td>/msg &lt;user&gt; &lt;text&gt;</td><td>send a one-off private message</td></tr>
+      <tr><td>/add &lt;username&gt;</td><td>add someone to contacts</td></tr>
+      <tr><td>/remove &lt;username&gt;</td><td>remove from contacts</td></tr>
+      <tr><td>/connect</td><td>list saved connections</td></tr>
+      <tr><td>/connect new</td><td>add a new connection</td></tr>
+      <tr><td>/connect edit &lt;n&gt;</td><td>edit saved connection n</td></tr>
+      <tr><td>/connect delete &lt;n&gt;</td><td>delete saved connection n</td></tr>
+      <tr><td>/mute</td><td>mute notifications</td></tr>
+      <tr><td>/unmute</td><td>re-enable notifications</td></tr>
+      <tr><td>/autostart</td><td>toggle launch on system login</td></tr>
+      <tr><td>/update</td><td>check for and apply updates</td></tr>
+      <tr><td>/restart</td><td>restart root_chat</td></tr>
+      <tr><td>/clear</td><td>clear the message display</td></tr>
+      <tr><td>/help</td><td>show all commands</td></tr>
+      <tr><td>/quit</td><td>exit</td></tr>
+    </table>
+  </section>
+
+  <!-- PRIVATE MESSAGING -->
+  <section>
+    <p class="label">private messaging</p>
+    <p>Start a private conversation with another user in the room:</p>
+    <div class="code-block">
+      <span class="prompt">/</span><span class="cmd">dm alice</span><br>
+      <span class="comment">  · both users land in a private room  ·  only you two can see it</span>
+    </div>
+    <p>Send a quick one-off message without switching rooms:</p>
+    <div class="code-block">
+      <span class="prompt">/</span><span class="cmd">msg alice hey, are you free?</span>
+    </div>
+  </section>
+
+  <!-- OWN RELAY -->
+  <section>
+    <p class="label">using your own relay server</p>
+    <p>To connect to a different relay (your own or someone else's), add a new connection:</p>
+    <div class="code-block">
+      <span class="prompt">/</span><span class="cmd">connect new</span><br>
+      <span class="comment">  · follow the setup wizard</span><br>
+      <span class="comment">  · select mode: relay</span><br>
+      <span class="comment">  · enter your server URL, room, and optional key</span>
+    </div>
+    <p>Switch between saved connections at any time:</p>
+    <div class="code-block">
+      <span class="prompt">/</span><span class="cmd">connect</span><span class="comment">       list saved connections</span><br>
+      <span class="prompt">/</span><span class="cmd">connect 2</span><span class="comment">     switch to connection 2</span>
+    </div>
+  </section>
+
+  <!-- SELF-HOST RELAY -->
+  <section>
+    <p class="label">self-hosting a relay server</p>
+    <p>The relay server is a lightweight FastAPI app. Run it on any Linux VPS or home server.</p>
+
+    <h3>quick setup (Ubuntu / Debian)</h3>
+    <div class="code-block">
+      <span class="comment"># clone and set up</span><br>
+      <span class="prompt">$</span> <span class="cmd">git clone https://github.com/r3pc0n/root_chat.git</span><br>
+      <span class="prompt">$</span> <span class="cmd">cd root_chat</span><br>
+      <span class="prompt">$</span> <span class="cmd">bash server/setup.sh</span>
+    </div>
+
+    <h3>optional: require an API key</h3>
+    <p>Create a <code>.env</code> file next to <code>relay.py</code>:</p>
+    <div class="code-block">
+      <span class="cmd">RELAY_API_KEY=your-secret-key</span>
+    </div>
+    <p>Users connect with: <code>/connect new</code> → enter the key in the "relay key" field.</p>
+
+    <h3>TLS with Caddy</h3>
+    <div class="code-block">
+      <span class="cmd">relay.yourdomain.com {</span><br>
+      <span class="cmd">    reverse_proxy localhost:7332</span><br>
+      <span class="cmd">}</span>
+    </div>
+    <p>Caddy handles TLS automatically. Users connect via <code>wss://relay.yourdomain.com</code>.</p>
+  </section>
+
+  <!-- ENCRYPTION -->
+  <section>
+    <p class="label">encryption</p>
+
+    <h3>direct mode (host / connect)</h3>
+    <p>End-to-end encrypted automatically. X25519 key exchange + ChaCha20-Poly1305. Your fingerprint is shown on connect — verify it with your peer out-of-band.</p>
+
+    <h3>relay mode</h3>
+    <p>The relay server sees who is in each room but cannot read messages when end-to-end encryption is enabled. Set a message encryption key in the connection wizard ("message enc key") — both sides need the same key.</p>
+    <ul>
+      <li>Key is derived with PBKDF2-HMAC-SHA256 (100k iterations)</li>
+      <li>Same key in different rooms produces different encryption keys</li>
+      <li>System messages (join/leave) are not encrypted</li>
+    </ul>
+  </section>
+
+  <footer>
+    <a href="/">root-chat.com</a>
+    <a href="https://github.com/r3pc0n/root_chat">github</a>
+  </footer>
+
+</main>
+</body>
+</html>
