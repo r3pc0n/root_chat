@@ -14,6 +14,9 @@ from textual.containers import Horizontal
 from textual.widgets import Input, RichLog, Static
 from textual.worker import Worker
 
+VERSION = "1.0"
+_UPDATE_URL = "https://api.github.com/repos/r3pc0n/root_chat/releases/latest"
+
 from config import format_connection, load_notifications_enabled, save_notifications_enabled, save_username
 from contacts import add_contact, load_contacts, remove_contact
 from history import History
@@ -150,6 +153,23 @@ class ChatApp(App):
         self._recv_worker = self.run_worker(self._receive_loop(), exclusive=False)
         self._render_sidebar()
         self.set_interval(5.0, self._refresh_online)
+        self.run_worker(self._check_update(), exclusive=False)
+
+    async def _check_update(self) -> None:
+        loop = asyncio.get_running_loop()
+        latest = await loop.run_in_executor(None, self._fetch_latest_version)
+        if latest and latest != VERSION:
+            self._system(f"update available: v{latest}  —  root-chat.com")
+
+    def _fetch_latest_version(self) -> str | None:
+        try:
+            req = urllib.request.Request(_UPDATE_URL, headers={"User-Agent": "rootchat"})
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                data = json.loads(resp.read())
+                tag = data.get("tag_name", "")
+                return tag.lstrip("v") if tag else None
+        except Exception:
+            return None
 
     async def _receive_loop(self) -> None:
         while True:
