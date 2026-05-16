@@ -7,6 +7,7 @@ from config import (
     format_connection,
     load_autostart_initialized,
     load_connections,
+    load_last_connection,
     load_username,
     save_autostart_initialized,
     save_connections,
