@@ -208,6 +208,17 @@ class ChatApp(App):
         except Exception:
             return self._online_users
 
+    def _fetch_all_rooms(self) -> dict[str, list[str]] | None:
+        if not isinstance(self.conn, RelayConnection):
+            return {}
+        http_url = self.conn._server_url.replace("wss://", "https://").replace("ws://", "http://")
+        try:
+            with urllib.request.urlopen(f"{http_url}/health", timeout=3) as resp:
+                data = json.loads(resp.read())
+                return data.get("rooms", {})
+        except Exception:
+            return None
+
     def _render_sidebar(self) -> None:
         contacts = load_contacts()
         lines: list[str] = [""]  # top padding
@@ -244,6 +255,7 @@ class ChatApp(App):
 
     # add new commands here — hint bar picks them up automatically
     _COMMANDS = [
+        "/rooms",
         "/room <name>",
         "/name <newname>",
         "/dm <user>",
@@ -439,6 +451,22 @@ class ChatApp(App):
                 self._system(f"already in [{arg}]")
                 return
             await self._reconnect_relay(arg, f"joined [{arg}]")
+        elif cmd == "/rooms":
+            if not isinstance(self.conn, RelayConnection):
+                self._system("rooms only available in relay mode")
+                return
+            loop = asyncio.get_event_loop()
+            rooms = await loop.run_in_executor(None, self._fetch_all_rooms)
+            if rooms is None:
+                self._system("could not reach relay server")
+                return
+            if not rooms:
+                self._system("no active rooms")
+                return
+            current = self.conn._room
+            for name, users in sorted(rooms.items()):
+                marker = "▶" if name == current else " "
+                self._system(f"{marker} [{name}]  —  {len(users)} online: {', '.join(users)}")
         elif cmd == "/add":
             if not arg:
                 self._system("usage: /add <username>")
@@ -479,6 +507,7 @@ class ChatApp(App):
         elif cmd == "/clear":
             self.query_one("#messages", RichLog).clear()
         elif cmd == "/help":
+            self._system("/rooms                 list active rooms on the relay")
             self._system("/room <name>          switch relay room")
             self._system("/name <newname>        change your username")
             self._system("/dm <user>             open a private chat")
