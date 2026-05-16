@@ -49,6 +49,7 @@ def enable() -> None:
             "Type=Application\n"
             f"Name={_APP_NAME}\n"
             f"Exec={_exec_cmd()}\n"
+            "Terminal=true\n"
             "Hidden=false\n"
             "NoDisplay=false\n"
             "X-GNOME-Autostart-enabled=true\n"
