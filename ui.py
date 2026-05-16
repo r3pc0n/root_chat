@@ -164,15 +164,15 @@ class ChatApp(App):
         self._system("you are in the public room  ·  anyone can join here")
         self._system("")
         self._system("commands:")
-        self._system("  /room <name>       join a different room")
-        self._system("  /dm <user>         start a private chat")
-        self._system("  /name <newname>    change your username")
-        self._system("  /add <user>        add someone to contacts")
-        self._system("  /help              show all commands")
+        self._welcome_cmd("/room <name>", "join a different room")
+        self._welcome_cmd("/dm <user>", "start a private chat")
+        self._welcome_cmd("/name <newname>", "change your username")
+        self._welcome_cmd("/add <user>", "add someone to contacts")
+        self._welcome_cmd("/help", "show all commands")
         self._system("")
         self._system("to use your own relay server:")
-        self._system("  /connect new       add a new connection")
-        self._system("  /connect edit 1    edit this connection")
+        self._welcome_cmd("/connect new", "add a new connection")
+        self._welcome_cmd("/connect edit 1", "edit this connection")
         self._system("")
         self._system("[link=https://root-chat.com/docs.html]docs & more:  root-chat.com/docs[/link]")
 
@@ -653,7 +653,17 @@ class ChatApp(App):
         self._recv_worker = self.run_worker(self._receive_loop(), exclusive=False)
         await self._refresh_online()
 
-    _URL_RE = re.compile(r'https?://\S+')
+    _TEXT_RE = re.compile(r'(https?://\S+)|(@\w+)')
+
+    def _welcome_line(self, msg: str) -> None:
+        log = self.query_one("#messages", RichLog)
+        log.write(Text.from_markup(f"[dim]  ·[/dim]  {msg}"))
+        if self._history:
+            self._history.log_system(msg)
+
+    def _welcome_cmd(self, cmd: str, desc: str, width: int = 17) -> None:
+        padding = " " * max(1, width - len(cmd))
+        self._welcome_line(f"  [#5a8faa]{cmd}[/]{padding}[dim]{desc}[/dim]")
 
     def _append(self, user: str, text: str, ts: str, own: bool, to: str | None = None) -> None:
         log = self.query_one("#messages", RichLog)
@@ -669,10 +679,15 @@ class ChatApp(App):
         line.append("  ")
 
         last = 0
-        for m in self._URL_RE.finditer(text):
+        for m in self._TEXT_RE.finditer(text):
             if m.start() > last:
                 line.append(text[last:m.start()])
-            line.append(m.group(), style="#4a7c59 underline")
+            if m.group(1):  # URL
+                line.append(m.group(1), style="#4a7c59 underline")
+            else:  # @mention
+                name = m.group(2)[1:]
+                style = "bold #ffaa00" if name.lower() == self.username.lower() else ""
+                line.append(m.group(2), style=style)
             last = m.end()
         line.append(text[last:])
 
