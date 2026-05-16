@@ -6,6 +6,7 @@ import re
 import time
 import urllib.request
 from datetime import datetime
+from pathlib import Path
 
 from rich.text import Text
 from textual.app import App, ComposeResult
@@ -171,6 +172,35 @@ class ChatApp(App):
         except Exception:
             return None
 
+    def _do_update(self) -> None:
+        import subprocess
+        import sys
+        latest = self._fetch_latest_version()
+        if latest is None:
+            self.call_from_thread(self._system, "could not reach update server")
+            return
+        if latest == VERSION:
+            self.call_from_thread(self._system, f"already on latest version ({VERSION})")
+            return
+        self.call_from_thread(self._system, f"update available: v{latest}  —  updating...")
+        if sys.platform == "win32":
+            import webbrowser
+            webbrowser.open("https://github.com/r3pc0n/root_chat/releases/latest")
+            self.call_from_thread(self._system, "opened releases page in browser  —  download and run the installer")
+        else:
+            try:
+                root = Path(__file__).resolve().parent
+                result = subprocess.run(
+                    ["git", "pull"],
+                    cwd=root, capture_output=True, text=True, timeout=30,
+                )
+                if result.returncode == 0:
+                    self.call_from_thread(self._system, "git pull done  —  restart rootchat to use the new version")
+                else:
+                    self.call_from_thread(self._system, f"git pull failed: {result.stderr.strip()}")
+            except Exception as e:
+                self.call_from_thread(self._system, f"update failed: {e}")
+
     async def _receive_loop(self) -> None:
         while True:
             msg = await self.conn.receive()
@@ -282,6 +312,7 @@ class ChatApp(App):
 
     # add new commands here — hint bar picks them up automatically
     _COMMANDS = [
+        "/update",
         "/rooms",
         "/room <name>",
         "/name <newname>",
@@ -533,7 +564,11 @@ class ChatApp(App):
                 self._system(f"{arg} is not in your contacts")
         elif cmd == "/clear":
             self.query_one("#messages", RichLog).clear()
+        elif cmd == "/update":
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(None, self._do_update)
         elif cmd == "/help":
+            self._system("/update                check for and apply updates")
             self._system("/rooms                 list active rooms on the relay")
             self._system("/room <name>          switch relay room")
             self._system("/name <newname>        change your username")
