@@ -10,3 +10,5 @@ venv/
 .DS_Store
 .claude/
 resume-claude-project.txt
+CLAUDE.md
+site/index-release.html
