@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 from dataclasses import dataclass
+from urllib.parse import quote
 
 from cryptography.exceptions import InvalidTag
 
@@ -190,7 +191,7 @@ async def relay_connect(
     relay_key: str | None = None,
 ) -> RelayConnection:
     import websockets
-    url = f"{server_url}/ws?username={username}&room={room}"
+    url = f"{server_url}/ws?username={quote(username)}&room={quote(room)}"
     headers = {"Authorization": f"Bearer {relay_key}"} if relay_key else {}
     ws = await websockets.connect(url, additional_headers=headers)
     key = derive_room_key(room_password, room) if room_password else None
