@@ -249,6 +249,7 @@ let ws         = null;
 let reconnectTimer = null;
 let healthInterval = null;
 let wasConnected   = false;
+let onlineUsers    = new Set();
 
 // ── overlay ──────────────────────────────────────────────────────────────
 const overlay     = document.getElementById('overlay');
@@ -319,10 +320,9 @@ function sys(text) { append('·', text, now(), 'sys'); }
 // ── sidebar ───────────────────────────────────────────────────────────────
 const userListEl = document.getElementById('user-list');
 
-function updateSidebar(users) {
-  const deduped = [...new Set(users)];
+function renderSidebar() {
   userListEl.innerHTML = '';
-  for (const u of deduped) {
+  for (const u of [...onlineUsers].sort()) {
     const li = document.createElement('li');
     if (u === username) li.classList.add('self');
     li.textContent = u;
@@ -337,7 +337,8 @@ async function pollHealth() {
     const data = await resp.json();
     const ms   = Date.now() - t0;
     latencyEl.textContent = `${ms}ms`;
-    updateSidebar(data.rooms?.[ROOM] || []);
+    const users = data.rooms?.[ROOM];
+    if (users) { onlineUsers = new Set(users); renderSidebar(); }
   } catch (_) {}
 }
 
@@ -352,6 +353,8 @@ function connect() {
 
   ws.onopen = () => {
     setStatus('connected');
+    onlineUsers = new Set([username]);
+    renderSidebar();
     if (!wasConnected) {
       sys(`connected to ${RELAY_WS}`);
       sys(`joined [${ROOM}]`);
@@ -369,7 +372,14 @@ function connect() {
     try { msg = JSON.parse(data); } catch (_) { return; }
     const { user, text, ts } = msg;
     if (!user || !text) return;
-    if (user === '·') { sys(text); return; }
+    if (user === '·') {
+      sys(text);
+      const joined = text.match(/^(.+) joined$/);
+      const left   = text.match(/^(.+) left$/);
+      if (joined) { onlineUsers.add(joined[1]);    renderSidebar(); }
+      if (left)   { onlineUsers.delete(left[1]);   renderSidebar(); }
+      return;
+    }
     const own = user === username;
     append(user, text, ts || now(), own ? 'own' : 'peer');
   };
