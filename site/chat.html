@@ -20,6 +20,26 @@
       overflow: hidden;
     }
 
+    /* ── notice bar ── */
+    .notice-bar {
+      background: #0f0f0f;
+      border-bottom: 1px solid #1a1a1a;
+      height: 24px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 1rem;
+      font-size: 11px;
+      color: #333;
+      gap: 0.4rem;
+      white-space: nowrap;
+      overflow: hidden;
+    }
+
+    .notice-bar a { color: #3a5e45; text-decoration: none; }
+    .notice-bar a:hover { color: #4a7c59; }
+
     /* ── status bar ── */
     .status-bar {
       background: #141414;
@@ -213,6 +233,10 @@
     </div>
     <p class="overlay-hint">enter to connect</p>
   </div>
+</div>
+
+<div class="notice-bar">
+  <span>·  demo  ·  messages are not encrypted  ·  for E2E encryption and full features <a href="https://root-chat.com">install root_chat</a></span>
 </div>
 
 <div class="status-bar">
