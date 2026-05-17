@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>root_chat · web</title>
+  <meta name="description" content="root_chat — web interface to the public relay room">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0d0d0d;
+      color: #888;
+      font-family: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', 'Consolas', ui-monospace, monospace;
+      font-size: 14px;
+      line-height: 1.6;
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── status bar ── */
+    .status-bar {
+      background: #141414;
+      border-bottom: 1px solid #1e1e1e;
+      height: 28px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 1rem;
+      font-size: 13px;
+      color: #444;
+      gap: 1rem;
+    }
+
+    .status-left { display: flex; align-items: center; gap: 0.6rem; min-width: 0; }
+
+    .dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: #2e2e2e; flex-shrink: 0;
+      transition: background 0.3s;
+    }
+    .dot.connected    { background: #4a7c59; }
+    .dot.connecting   { background: #555; animation: blink 1s ease-in-out infinite; }
+    .dot.disconnected { background: #6b2020; }
+
+    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+
+    #status-info { color: #444; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #status-relay { color: #2e2e2e; font-size: 12px; white-space: nowrap; flex-shrink: 0; }
+    #status-latency { color: #2e2e2e; font-size: 12px; white-space: nowrap; flex-shrink: 0; }
+
+    /* ── layout ── */
+    .layout { display: flex; flex: 1; overflow: hidden; }
+
+    /* ── messages ── */
+    .messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0.6rem 1rem 0.4rem;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .messages::-webkit-scrollbar { width: 3px; }
+    .messages::-webkit-scrollbar-track { background: transparent; }
+    .messages::-webkit-scrollbar-thumb { background: #1e1e1e; border-radius: 2px; }
+
+    .msg {
+      display: flex;
+      font-size: 13px;
+      line-height: 1.65;
+      padding: 0.03rem 0;
+      word-break: break-word;
+    }
+
+    .msg .ts   { color: #2e2e2e; width: 3.2rem; flex-shrink: 0; }
+    .msg .user { flex-shrink: 0; padding-right: 0.75rem; }
+    .msg .body { flex: 1; color: #888; }
+
+    .msg.sys  .user, .msg.sys  .body { color: #3a3a3a; }
+    .msg.own  .user                  { color: #555; }
+    .msg.own  .body                  { color: #555; }
+    .msg.peer .user                  { color: #ffaa00; }
+    .msg.peer .body                  { color: #888; }
+    .msg.mention .body               { color: #ffaa00; }
+
+    /* ── sidebar ── */
+    .sidebar {
+      width: 160px;
+      flex-shrink: 0;
+      border-left: 1px solid #1a1a1a;
+      padding: 0.75rem 1rem;
+      overflow-y: auto;
+      font-size: 12px;
+    }
+
+    .sidebar-label {
+      color: #2a2a2a;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      margin-bottom: 0.6rem;
+    }
+
+    .user-list { list-style: none; }
+    .user-list li {
+      color: #444;
+      padding: 0.1rem 0;
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-size: 12px;
+    }
+    .user-list li::before { content: '●'; color: #3a5e45; font-size: 7px; flex-shrink: 0; }
+    .user-list li.self    { color: #555; }
+    .user-list li.self::before { color: #4a7c59; }
+
+    /* ── input ── */
+    .input-row {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.45rem 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      flex-shrink: 0;
+    }
+
+    .input-prompt { color: #2e2e2e; font-size: 13px; flex-shrink: 0; user-select: none; }
+
+    #chat-input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: #888;
+      font-family: inherit;
+      font-size: 13px;
+      caret-color: #555;
+      min-width: 0;
+    }
+    #chat-input::placeholder { color: #252525; }
+    #chat-input:disabled     { cursor: not-allowed; }
+
+    /* ── username overlay ── */
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: #0d0d0d;
+      display: flex;
+      align-items: center;
+      padding: 0 2.5rem;
+      z-index: 10;
+    }
+
+    .overlay-box { max-width: 360px; width: 100%; }
+
+    .overlay-box h2 {
+      font-size: 1.1rem;
+      font-weight: 400;
+      color: #ccc;
+      margin-bottom: 0.2rem;
+    }
+
+    .overlay-box .sub {
+      color: #3a3a3a;
+      font-size: 13px;
+      margin-bottom: 1.75rem;
+    }
+
+    .overlay-input-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      border-bottom: 1px solid #2a2a2a;
+      padding-bottom: 0.3rem;
+    }
+
+    .overlay-prompt { color: #2e2e2e; }
+
+    #username-input {
+      background: transparent;
+      border: none;
+      outline: none;
+      color: #888;
+      font-family: inherit;
+      font-size: 14px;
+      flex: 1;
+      caret-color: #555;
+    }
+    #username-input::placeholder { color: #252525; }
+
+    .overlay-hint { color: #252525; font-size: 12px; margin-top: 0.7rem; }
+
+    /* ── responsive ── */
+    @media (max-width: 560px) {
+      .sidebar { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="overlay" id="overlay">
+  <div class="overlay-box">
+    <h2>root_chat</h2>
+    <p class="sub">web chat  ·  public room</p>
+    <div class="overlay-input-row">
+      <span class="overlay-prompt">&gt;</span>
+      <input id="username-input" type="text" placeholder="choose a username"
+             maxlength="32" autocomplete="off" spellcheck="false" autocorrect="off">
+    </div>
+    <p class="overlay-hint">enter to connect</p>
+  </div>
+</div>
+
+<div class="status-bar">
+  <div class="status-left">
+    <span class="dot" id="dot"></span>
+    <span id="status-info">connecting...</span>
+  </div>
+  <span id="status-relay">relay.root-chat.com  ·  public</span>
+  <span id="status-latency"></span>
+</div>
+
+<div class="layout">
+  <div class="messages" id="messages"></div>
+  <div class="sidebar">
+    <div class="sidebar-label">in room  ·  public</div>
+    <ul class="user-list" id="user-list"></ul>
+  </div>
+</div>
+
+<div class="input-row">
+  <span class="input-prompt">&gt;</span>
+  <input id="chat-input" type="text" placeholder="message..."
+         maxlength="2000" autocomplete="off" spellcheck="false"
+         autocorrect="off" autocapitalize="off" disabled>
+</div>
+
+<script>
+const RELAY_WS   = 'wss://relay.root-chat.com';
+const RELAY_HTTP = 'https://relay.root-chat.com';
+const ROOM       = 'public';
+
+let username   = localStorage.getItem('rc_username') || '';
+let ws         = null;
+let reconnectTimer = null;
+let healthInterval = null;
+let wasConnected   = false;
+
+// ── overlay ──────────────────────────────────────────────────────────────
+const overlay     = document.getElementById('overlay');
+const usernameIn  = document.getElementById('username-input');
+
+usernameIn.addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  const val = usernameIn.value.trim();
+  if (!val) return;
+  username = val;
+  localStorage.setItem('rc_username', username);
+  overlay.style.display = 'none';
+  connect();
+});
+
+// ── status ────────────────────────────────────────────────────────────────
+const dotEl      = document.getElementById('dot');
+const statusInfo = document.getElementById('status-info');
+const latencyEl  = document.getElementById('status-latency');
+const chatInput  = document.getElementById('chat-input');
+
+function setStatus(state) {
+  dotEl.className = `dot ${state}`;
+  if (state === 'connected') {
+    statusInfo.textContent = `${username}  ·  connected`;
+    chatInput.disabled = false;
+    chatInput.focus();
+  } else if (state === 'connecting') {
+    statusInfo.textContent = 'connecting...';
+    chatInput.disabled = true;
+  } else {
+    statusInfo.textContent = 'disconnected';
+    chatInput.disabled = true;
+  }
+}
+
+// ── time ──────────────────────────────────────────────────────────────────
+function now() {
+  const d = new Date();
+  return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+
+// ── messages ──────────────────────────────────────────────────────────────
+const messagesEl = document.getElementById('messages');
+
+function append(user, text, ts, type) {
+  const atMention = type === 'peer' &&
+    text.toLowerCase().includes(`@${username.toLowerCase()}`);
+
+  const row  = document.createElement('div');
+  row.className = `msg ${type}${atMention ? ' mention' : ''}`;
+
+  const tsEl   = document.createElement('span'); tsEl.className   = 'ts';
+  const userEl = document.createElement('span'); userEl.className = 'user';
+  const bodyEl = document.createElement('span'); bodyEl.className = 'body';
+
+  tsEl.textContent   = ts;
+  userEl.textContent = user;
+  bodyEl.textContent = '  ' + text;
+
+  row.append(tsEl, userEl, bodyEl);
+  messagesEl.appendChild(row);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+function sys(text) { append('·', text, now(), 'sys'); }
+
+// ── sidebar ───────────────────────────────────────────────────────────────
+const userListEl = document.getElementById('user-list');
+
+function updateSidebar(users) {
+  const deduped = [...new Set(users)];
+  userListEl.innerHTML = '';
+  for (const u of deduped) {
+    const li = document.createElement('li');
+    if (u === username) li.classList.add('self');
+    li.textContent = u;
+    userListEl.appendChild(li);
+  }
+}
+
+async function pollHealth() {
+  const t0 = Date.now();
+  try {
+    const resp = await fetch(`${RELAY_HTTP}/health`, { cache: 'no-store' });
+    const data = await resp.json();
+    const ms   = Date.now() - t0;
+    latencyEl.textContent = `${ms}ms`;
+    updateSidebar(data.rooms?.[ROOM] || []);
+  } catch (_) {}
+}
+
+// ── websocket ─────────────────────────────────────────────────────────────
+function connect() {
+  clearTimeout(reconnectTimer);
+  if (ws) { ws.onclose = null; ws.onerror = null; ws.close(); }
+  setStatus('connecting');
+
+  const url = `${RELAY_WS}/ws?username=${encodeURIComponent(username)}&room=${encodeURIComponent(ROOM)}`;
+  ws = new WebSocket(url);
+
+  ws.onopen = () => {
+    setStatus('connected');
+    if (!wasConnected) {
+      sys(`connected to ${RELAY_WS}`);
+      sys(`joined [${ROOM}]`);
+      wasConnected = true;
+    } else {
+      sys('reconnected');
+    }
+    pollHealth();
+    clearInterval(healthInterval);
+    healthInterval = setInterval(pollHealth, 5000);
+  };
+
+  ws.onmessage = ({ data }) => {
+    let msg;
+    try { msg = JSON.parse(data); } catch (_) { return; }
+    const { user, text, ts } = msg;
+    if (!user || !text) return;
+    if (user === '·') { sys(text); return; }
+    const own = user === username;
+    append(user, text, ts || now(), own ? 'own' : 'peer');
+  };
+
+  ws.onclose = () => {
+    setStatus('disconnected');
+    clearInterval(healthInterval);
+    sys('connection lost  —  reconnecting in 3s...');
+    reconnectTimer = setTimeout(connect, 3000);
+  };
+
+  ws.onerror = () => {};
+}
+
+// ── send ──────────────────────────────────────────────────────────────────
+chatInput.addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  const text = chatInput.value.trim();
+  if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
+  const ts = now();
+  ws.send(JSON.stringify({ user: username, text, ts, to: null }));
+  append(username, text, ts, 'own');
+  chatInput.value = '';
+});
+
+// ── init ──────────────────────────────────────────────────────────────────
+if (username) {
+  overlay.style.display = 'none';
+  connect();
+} else {
+  setTimeout(() => usernameIn.focus(), 50);
+}
+</script>
+</body>
+</html>
