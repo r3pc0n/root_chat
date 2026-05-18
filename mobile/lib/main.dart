@@ -3,41 +3,87 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'services/storage_service.dart';
 import 'screens/chat_screen.dart';
+import 'theme/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-    statusBarColor: Color(0xFF141414),
-    statusBarIconBrightness: Brightness.dark,
-    systemNavigationBarColor: Color(0xFF0D0D0D),
-    systemNavigationBarIconBrightness: Brightness.dark,
-  ));
-
   final storage = StorageService();
   await storage.init();
-
   runApp(RootChatApp(storage: storage));
 }
 
-class RootChatApp extends StatelessWidget {
+class RootChatApp extends StatefulWidget {
   final StorageService storage;
   const RootChatApp({super.key, required this.storage});
 
   @override
+  State<RootChatApp> createState() => _RootChatAppState();
+}
+
+class _RootChatAppState extends State<RootChatApp> {
+  late final ValueNotifier<AppThemeData> _themeNotifier;
+
+  @override
+  void initState() {
+    super.initState();
+    _themeNotifier = ValueNotifier(AppThemeData.fromKey(widget.storage.themeMode));
+    _themeNotifier.addListener(_onThemeChanged);
+    _applySystemUi(_themeNotifier.value);
+  }
+
+  void _onThemeChanged() {
+    widget.storage.setThemeMode(_themeNotifier.value.key);
+    _applySystemUi(_themeNotifier.value);
+    setState(() {});
+  }
+
+  void _applySystemUi(AppThemeData t) {
+    SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
+      statusBarColor: t.surface,
+      statusBarIconBrightness: t.isLight ? Brightness.dark : Brightness.light,
+      systemNavigationBarColor: t.bg,
+      systemNavigationBarIconBrightness: t.isLight ? Brightness.dark : Brightness.light,
+    ));
+  }
+
+  @override
+  void dispose() {
+    _themeNotifier.removeListener(_onThemeChanged);
+    _themeNotifier.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'root_chat',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: const ColorScheme.dark(surface: Color(0xFF0D0D0D)),
-        scaffoldBackgroundColor: const Color(0xFF0D0D0D),
-        textTheme: GoogleFonts.jetBrainsMonoTextTheme(
-          ThemeData.dark().textTheme,
+    final t = _themeNotifier.value;
+    return AppTheme(
+      data: t,
+      notifier: _themeNotifier,
+      child: MaterialApp(
+        title: 'root_chat',
+        debugShowCheckedModeBanner: false,
+        theme: ThemeData(
+          brightness: t.isLight ? Brightness.light : Brightness.dark,
+          colorScheme: ColorScheme(
+            brightness: t.isLight ? Brightness.light : Brightness.dark,
+            primary: t.amber,
+            onPrimary: t.bg,
+            secondary: t.green,
+            onSecondary: t.bg,
+            surface: t.surface,
+            onSurface: t.body,
+            error: t.red,
+            onError: t.bg,
+          ),
+          scaffoldBackgroundColor: t.bg,
+          textTheme: GoogleFonts.jetBrainsMonoTextTheme(
+            t.isLight ? ThemeData.light().textTheme : ThemeData.dark().textTheme,
+          ),
         ),
+        home: widget.storage.username.isEmpty
+            ? _UsernameGate(storage: widget.storage)
+            : ChatScreen(storage: widget.storage),
       ),
-      home: storage.username.isEmpty
-          ? _UsernameGate(storage: storage)
-          : ChatScreen(storage: storage),
     );
   }
 }
@@ -66,9 +112,10 @@ class _UsernameGateState extends State<_UsernameGate> {
 
   @override
   Widget build(BuildContext context) {
+    final t = AppTheme.of(context);
     final mono = GoogleFonts.jetBrainsMono;
     return Scaffold(
-      backgroundColor: const Color(0xFF0D0D0D),
+      backgroundColor: t.bg,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 32),
@@ -77,27 +124,27 @@ class _UsernameGateState extends State<_UsernameGate> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('root_chat',
-                  style: mono(fontSize: 20, color: const Color(0xFFCCCCCC), fontWeight: FontWeight.w400)),
+                  style: mono(fontSize: 20, color: t.body, fontWeight: FontWeight.w400)),
               const SizedBox(height: 4),
               Text('relay  ·  public room',
-                  style: mono(fontSize: 13, color: const Color(0xFF3A3A3A))),
+                  style: mono(fontSize: 13, color: t.sys)),
               const SizedBox(height: 40),
               Container(
-                decoration: const BoxDecoration(
-                    border: Border(bottom: BorderSide(color: Color(0xFF2A2A2A)))),
+                decoration: BoxDecoration(
+                    border: Border(bottom: BorderSide(color: t.saved))),
                 child: Row(
                   children: [
-                    Text('> ', style: mono(fontSize: 14, color: const Color(0xFF2E2E2E))),
+                    Text('> ', style: mono(fontSize: 14, color: t.dim)),
                     Expanded(
                       child: TextField(
                         controller: _ctrl,
                         autofocus: true,
-                        style: mono(fontSize: 14, color: const Color(0xFF888888)),
-                        cursorColor: const Color(0xFF555555),
+                        style: mono(fontSize: 14, color: t.body),
+                        cursorColor: t.own,
                         decoration: InputDecoration(
                           border: InputBorder.none,
                           hintText: 'choose a username',
-                          hintStyle: mono(fontSize: 14, color: const Color(0xFF252525)),
+                          hintStyle: mono(fontSize: 14, color: t.subtle),
                           isDense: true,
                           contentPadding: const EdgeInsets.symmetric(vertical: 8),
                         ),
@@ -111,7 +158,7 @@ class _UsernameGateState extends State<_UsernameGate> {
               ),
               const SizedBox(height: 12),
               Text('enter to connect',
-                  style: mono(fontSize: 12, color: const Color(0xFF252525))),
+                  style: mono(fontSize: 12, color: t.subtle)),
             ],
           ),
         ),
